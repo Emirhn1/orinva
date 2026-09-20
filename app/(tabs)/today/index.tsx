@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Pressable, ScrollView } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { ScreenContainer, Text, Card, Button, IconButton, EmptyState, ProgressRing, Surface, OutcomeBadge } from '@/components/ui';
@@ -8,7 +8,8 @@ import { useAppStore, checkMilestonesForBehavior } from '@/store/useAppStore';
 import { cleanDuration, milestoneProgress, computeEarnings } from '@/utils/journey';
 import { formatRelativeTime, timeOfDayGreeting, todayKey, formatDuration, formatRemaining, formatMoney, formatMinutesHuman, dayKey } from '@/utils/date';
 import { useNow } from '@/utils/useNow';
-import { dailyContentFor, questionForDate } from '@/content/library';
+import { questionForDate } from '@/content/library';
+import { Quote, QUOTE_CATEGORY_LABEL } from '@/content/quotes';
 import { Behavior } from '@/data/types';
 
 const GREETING: Record<string, string> = {
@@ -27,6 +28,17 @@ export default function TodayScreen() {
   const reasons = useAppStore((s) => s.reasons);
   const checkins = useAppStore((s) => s.checkins);
   const settings = useAppStore((s) => s.settings);
+  const quoteOfTheDay = useAppStore((s) => s.quoteOfTheDay);
+  const quoteOfDay = useAppStore((s) => s.quoteOfDay);
+  const quoteMeta = useAppStore((s) => s.quoteMeta);
+  const toggleFavoriteQuote = useAppStore((s) => s.toggleFavoriteQuote);
+  const [quote, setQuote] = useState<Quote | null>(null);
+
+  // Picked once per local day (stored), never during render.
+  useEffect(() => {
+    setQuote(quoteOfTheDay());
+  }, [quoteOfDay?.date, quoteOfDay?.id, quoteOfTheDay]);
+  const quoteIsFavorite = !!quote && !!quoteMeta.find((m) => m.quoteId === quote.id)?.isFavorite;
 
   const behaviors = useMemo(() => allBehaviors.filter((b) => !b.archived), [allBehaviors]);
   const todaysCheckIn = useMemo(() => checkins.find((c) => c.date === todayKey()) ?? null, [checkins]);
@@ -50,8 +62,6 @@ export default function TodayScreen() {
   );
 
   const timeOfDay = timeOfDayGreeting(now);
-  const contentSlot = timeOfDay === 'evening' || timeOfDay === 'night' ? 'evening' : 'morning';
-  const content = dailyContentFor(focus?.category ?? 'general', contentSlot);
 
   const reason = useMemo(
     () => reasons.find((r) => r.type === 'reason' && (r.behaviorId === focus?.id || r.behaviorId === null)),
@@ -224,11 +234,30 @@ export default function TodayScreen() {
         </Card>
       </Pressable>
 
-      {/* Quote of the moment + own reason (F2) */}
+      {/* Günün sözü (Part 3 quote engine) + own reason (F2) */}
       <Card padded style={{ marginTop: tokens.spacing['16'] }}>
-        <Text variant="body" style={{ fontStyle: 'italic' }}>
-          {content.text}
-        </Text>
+        {quote ? (
+          <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: tokens.spacing['8'] }}>
+              <Text variant="caption" color="tertiary">
+                Günün sözü · {QUOTE_CATEGORY_LABEL[quote.category]}
+              </Text>
+              <Pressable onPress={() => toggleFavoriteQuote(quote.id)} hitSlop={12} accessibilityRole="button" accessibilityLabel={quoteIsFavorite ? 'Favoriden çıkar' : 'Favorilere ekle'}>
+                <Icon name={quoteIsFavorite ? 'bookmark' : 'heart'} size={18} color={quoteIsFavorite ? colors.indigo : colors.textTertiary} />
+              </Pressable>
+            </View>
+            <Pressable onPress={() => router.push({ pathname: '/quote/[id]', params: { id: quote.id } })} accessibilityRole="button" accessibilityLabel="Günün sözünü aç">
+              <Text variant="bodyLarge" serif>
+                {quote.text}
+              </Text>
+              {quote.author ? (
+                <Text variant="caption" color="secondary" style={{ marginTop: tokens.spacing['4'] }}>
+                  — {quote.author}
+                </Text>
+              ) : null}
+            </Pressable>
+          </View>
+        ) : null}
         {reason ? (
           <View style={{ marginTop: tokens.spacing['16'], paddingTop: tokens.spacing['16'], borderTopWidth: 1, borderTopColor: colors.border }}>
             <Text variant="caption" color="tertiary">

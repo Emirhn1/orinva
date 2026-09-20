@@ -23,7 +23,7 @@ function ensureTable(name: string) {
 }
 
 function keyField(table: string) {
-  return table === 'kv_settings' ? 'key' : 'id';
+  return table === 'kv_settings' ? 'key' : table === 'quote_meta' ? 'quoteId' : 'id';
 }
 
 function runStatement(rawStatement: string) {
@@ -149,7 +149,7 @@ function runSync(sql: string, params: any[] = []) {
 export const db = { execSync, runSync, getAllSync, getFirstSync };
 
 export function initDb() {
-  ['behaviors', 'events', 'journal_entries', 'reasons', 'checkins', 'milestones', 'kv_settings'].forEach(ensureTable);
+  ['behaviors', 'events', 'journal_entries', 'reasons', 'checkins', 'milestones', 'kv_settings', 'user_quotes', 'quote_meta'].forEach(ensureTable);
 }
 
 export function wipeAllTables() {
@@ -159,12 +159,14 @@ export function wipeAllTables() {
 export function exportAllData() {
   return {
     exportedAt: new Date().toISOString(),
-    schemaVersion: 2,
+    schemaVersion: 3,
     behaviors: Array.from(ensureTable('behaviors').values()),
     events: Array.from(ensureTable('events').values()),
     journalEntries: Array.from(ensureTable('journal_entries').values()),
     reasons: Array.from(ensureTable('reasons').values()),
     checkins: Array.from(ensureTable('checkins').values()),
     milestones: Array.from(ensureTable('milestones').values()),
+    userQuotes: Array.from(ensureTable('user_quotes').values()),
+    quoteMeta: Array.from(ensureTable('quote_meta').values()),
   };
 }

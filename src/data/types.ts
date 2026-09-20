@@ -109,3 +109,21 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 /** Aggregated chip usage counts, keyed by chip id — drives the "most used first" ordering. */
 export type ChipUsage = Record<string, number>;
+
+/** A quote the user added themselves ("Kendi yazdıklarım" / "Kendi şarkı sözlerim"). */
+export interface UserQuote {
+  id: string;
+  category: 'own' | 'lyrics';
+  text: string;
+  author: string | null;
+  createdAt: string;
+}
+
+/** Per-quote state for both built-in and user quotes (favorite, shown history, hidden). */
+export interface QuoteMeta {
+  quoteId: string;
+  isFavorite: boolean;
+  lastShownAt: string | null;
+  shownCount: number;
+  hiddenAt: string | null;
+}

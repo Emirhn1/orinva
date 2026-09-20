@@ -13,7 +13,7 @@ export default function OnboardingPlan() {
   const { whyChips, planChip, set } = useOnboardingStore();
 
   return (
-    <ModalShell onClose={() => router.back()} progress={3 / 4}>
+    <ModalShell onClose={() => router.back()} progress={3 / 5}>
       <Text variant="headline">Tek bir neden, tek bir plan</Text>
       <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['8'], marginBottom: tokens.spacing['24'] }}>
         İkisi de atlanabilir. Seçersen zor anda karşına kendi sözlerin çıkar.
@@ -46,7 +46,7 @@ export default function OnboardingPlan() {
       </View>
 
       <View style={{ marginTop: tokens.spacing['32'] }}>
-        <Button label="Devam et" onPress={() => router.push('/onboarding/demo')} />
+        <Button label="Devam et" onPress={() => router.push('/onboarding/notify')} />
       </View>
     </ModalShell>
   );

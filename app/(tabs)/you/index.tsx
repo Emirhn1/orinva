@@ -35,6 +35,7 @@ export default function YouScreen() {
   const allBehaviors = useAppStore((s) => s.behaviors);
   const events = useAppStore((s) => s.events);
   const settings = useAppStore((s) => s.settings);
+  const notificationPrefs = useAppStore((s) => s.notificationPrefs);
   const updateSetting = useAppStore((s) => s.updateSetting);
 
   const behaviors = useMemo(() => allBehaviors.filter((b) => !b.archived), [allBehaviors]);
@@ -96,6 +97,8 @@ export default function YouScreen() {
         <Card padded>
           <Row icon="feather" label="Kendime notlar" hint="Nedenlerin — zor anda karşına çıkar" onPress={() => router.push('/(tabs)/you/notes')} />
           {divider}
+          <Row icon="heart" label="Cesaret arşivi" hint="Favori sözlerin ve kendi yazdıkların" onPress={() => router.push('/(tabs)/you/favorites')} />
+          {divider}
           <Row icon="compass" label="Davranışlarım" hint="Düzenle, arşivle, kazanç sayacı" onPress={() => router.push('/(tabs)/journey/behaviors')} />
         </Card>
       </View>
@@ -120,12 +123,7 @@ export default function YouScreen() {
           Gizlilik & Bildirimler
         </Text>
         <Card padded>
-          <Row
-            icon="bell"
-            label="Bildirimler"
-            hint="Günün sözü ve nazik hatırlatmalar — yakında"
-            right={<Switch value={settings.notificationsEnabled} onValueChange={(v) => updateSetting('notificationsEnabled', v)} trackColor={{ true: colors.indigo }} />}
-          />
+          <Row icon="bell" label="Bildirimler" hint={notificationPrefs.enabled ? `Açık · günün sözü ${notificationPrefs.times.join(', ') || '—'}` : 'Kapalı'} onPress={() => router.push('/(tabs)/you/notifications')} />
           {divider}
           <Row
             icon="lock"

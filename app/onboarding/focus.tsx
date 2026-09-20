@@ -17,7 +17,7 @@ export default function OnboardingFocus() {
   const canContinue = category !== null && nickname.trim().length > 1;
 
   return (
-    <ModalShell onClose={() => router.back()} progress={1 / 4}>
+    <ModalShell onClose={() => router.back()} progress={1 / 5}>
       <Text variant="headline">Bir ana odak seç</Text>
       <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['8'], marginBottom: tokens.spacing['24'] }}>
         İlk 14 gün tek bir odakla ilerleyeceğiz. İkinci bir davranışı sonra ekleyebilirsin.

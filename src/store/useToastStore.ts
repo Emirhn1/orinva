@@ -3,7 +3,7 @@ import { create } from 'zustand';
 export interface ToastSpec {
   id: number;
   message: string;
-  icon?: 'check' | 'info' | 'alert-circle' | 'refresh-cw';
+  icon?: 'check' | 'info' | 'alert-circle' | 'refresh-cw' | 'bell' | 'heart';
   tone?: 'neutral' | 'success' | 'terracotta';
   actionLabel?: string;
   onAction?: () => void;

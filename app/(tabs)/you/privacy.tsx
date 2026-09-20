@@ -24,6 +24,14 @@ export default function PrivacyScreen() {
       </Card>
 
       <Card padded style={{ marginTop: tokens.spacing['16'] }}>
+        <Text variant="label">Bildirimler</Text>
+        <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['8'] }}>
+          Tüm bildirimler cihazda planlanır; sunucu yoktur. Bildirim önizlemesinde asla davranışının adı ya da miktar geçmez —
+          telefonu başkası görse bile sadece kısa bir cümle görür.
+        </Text>
+      </Card>
+
+      <Card padded style={{ marginTop: tokens.spacing['16'] }}>
         <Text variant="label">AI ve senkron</Text>
         <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['8'] }}>
           Bu sürümde AI ve bulut senkronu kapalıdır. İleride açılırsa, ayrı ve geri alınabilir bir onay isteyeceğiz.

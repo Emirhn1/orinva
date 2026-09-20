@@ -61,7 +61,7 @@ export default function OnboardingDemo() {
   };
 
   return (
-    <ModalShell progress={4 / 4}>
+    <ModalShell progress={5 / 5}>
       <View style={{ alignItems: 'center' }}>
         <Text variant="headline" style={{ textAlign: 'center' }}>
           Şimdi gerçekten dene

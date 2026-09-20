@@ -20,7 +20,7 @@ export default function OnboardingGoal() {
   const { goalMode, set } = useOnboardingStore();
 
   return (
-    <ModalShell onClose={() => router.back()} progress={2 / 4}>
+    <ModalShell onClose={() => router.back()} progress={2 / 5}>
       <Text variant="headline">Hedef modun ne?</Text>
       <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['8'], marginBottom: tokens.spacing['24'] }}>
         Her niyete saygı duyarız — mükemmel olmak zorunda değilsin.

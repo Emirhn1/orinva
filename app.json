@@ -36,7 +36,14 @@
           "imageWidth": 160
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-notifications",
+        {
+          "color": "#4E5FB8",
+          "defaultChannel": "orinva-gentle"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

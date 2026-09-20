@@ -4,9 +4,9 @@ import * as SQLite from 'expo-sqlite';
 // project's local database on the same device/simulator.
 export const db = SQLite.openDatabaseSync('orinva-mobile-v1.db');
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
-const TABLE_NAMES = ['behaviors', 'events', 'journal_entries', 'reasons', 'checkins', 'milestones', 'kv_settings'];
+const TABLE_NAMES = ['behaviors', 'events', 'journal_entries', 'reasons', 'checkins', 'milestones', 'kv_settings', 'user_quotes', 'quote_meta'];
 
 function hasColumn(table: string, column: string): boolean {
   const row = db.getFirstSync<{ cnt: number }>(
@@ -155,6 +155,22 @@ export function initDb() {
       key TEXT PRIMARY KEY NOT NULL,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS user_quotes (
+      id TEXT PRIMARY KEY NOT NULL,
+      category TEXT NOT NULL,
+      text TEXT NOT NULL,
+      author TEXT,
+      createdAt TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS quote_meta (
+      quoteId TEXT PRIMARY KEY NOT NULL,
+      isFavorite INTEGER NOT NULL DEFAULT 0,
+      lastShownAt TEXT,
+      shownCount INTEGER NOT NULL DEFAULT 0,
+      hiddenAt TEXT
+    );
   `);
 
   migrateToV2();
@@ -171,6 +187,8 @@ export function wipeAllTables() {
     DELETE FROM checkins;
     DELETE FROM milestones;
     DELETE FROM kv_settings;
+    DELETE FROM user_quotes;
+    DELETE FROM quote_meta;
   `);
 }
 
@@ -184,5 +202,7 @@ export function exportAllData() {
     reasons: db.getAllSync('SELECT * FROM reasons;'),
     checkins: db.getAllSync('SELECT * FROM checkins;'),
     milestones: db.getAllSync('SELECT * FROM milestones;'),
+    userQuotes: db.getAllSync('SELECT * FROM user_quotes;'),
+    quoteMeta: db.getAllSync('SELECT * FROM quote_meta;'),
   };
 }

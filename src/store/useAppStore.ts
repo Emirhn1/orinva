@@ -7,6 +7,7 @@ import { reasonsRepo } from '@/data/repositories/reasonsRepo';
 import { checkinsRepo } from '@/data/repositories/checkinsRepo';
 import { milestonesRepo } from '@/data/repositories/milestonesRepo';
 import { settingsRepo } from '@/data/repositories/settingsRepo';
+import { quotesRepo } from '@/data/repositories/quotesRepo';
 import {
   Behavior,
   UrgeEvent,
@@ -19,13 +20,43 @@ import {
   EventOutcome,
   EventSource,
   ChipUsage,
+  UserQuote,
+  QuoteMeta,
 } from '@/data/types';
+import { NotificationPrefs, normalizePrefs } from '@/notifications/prefs';
+import { PlannedNotification } from '@/notifications/planner';
+import { allQuotes, pickQuote, markShown as markQuoteShownMeta } from '@/notifications/quoteEngine';
+import { Quote } from '@/content/quotes';
+import type { PermissionState } from '@/notifications/native';
 import { generateId } from '@/utils/id';
 import { todayKey } from '@/utils/date';
 import { cleanDuration, MILESTONE_LADDER } from '@/utils/journey';
 import { questionForDate } from '@/content/library';
 
 const CHIP_USAGE_KEY = 'chipUsage';
+const NOTIFICATION_PREFS_KEY = 'notificationPrefs';
+const NOTIFICATION_PLAN_KEY = 'notificationPlan';
+const LAST_INSIGHT_KEY = 'lastInsightNotifiedAt';
+const QUOTE_OF_DAY_KEY = 'quoteOfDay';
+
+interface StoredPlan {
+  key: string;
+  kind: PlannedNotification['kind'];
+  at: string;
+  title: string;
+  body: string;
+  route: PlannedNotification['route'];
+  quoteId?: string;
+  behaviorId?: string;
+}
+
+function hydratePlan(raw: StoredPlan[]): PlannedNotification[] {
+  return raw.map((p) => ({ ...p, at: new Date(p.at) }));
+}
+
+function dehydratePlan(plan: PlannedNotification[]): StoredPlan[] {
+  return plan.map((p) => ({ ...p, at: p.at.toISOString() }));
+}
 
 export interface LogEventInput {
   behaviorId: string;
@@ -59,6 +90,15 @@ interface AppState {
   chipUsage: ChipUsage;
   pendingMilestone: Milestone | null;
 
+  // Part 3 — quotes & notifications
+  userQuotes: UserQuote[];
+  quoteMeta: QuoteMeta[];
+  notificationPrefs: NotificationPrefs;
+  notificationPermission: PermissionState;
+  notificationPlan: PlannedNotification[];
+  lastInsightNotifiedAt: string | null;
+  quoteOfDay: { date: string; id: string } | null;
+
   boot: () => void;
 
   addBehavior: (input: BehaviorInput) => Behavior;
@@ -85,6 +125,18 @@ interface AppState {
   dismissPendingMilestone: () => void;
 
   bumpChipUsage: (keys: string[]) => void;
+
+  addUserQuote: (category: UserQuote['category'], text: string, author?: string | null) => UserQuote;
+  removeUserQuote: (id: string) => void;
+  toggleFavoriteQuote: (id: string) => void;
+  hideQuote: (id: string) => void;
+  unhideQuote: (id: string) => void;
+  markQuoteShown: (id: string) => void;
+  /** The quote pinned to today's Today card — chosen once per local day. */
+  quoteOfTheDay: () => Quote | null;
+  updateNotificationPrefs: (patch: Partial<NotificationPrefs>) => void;
+  setNotificationPermission: (p: PermissionState) => void;
+  setNotificationPlan: (plan: PlannedNotification[], insightNotifiedAt?: string | null) => void;
 
   updateSetting: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
   completeOnboarding: () => void;
@@ -121,10 +173,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
   chipUsage: {},
   pendingMilestone: null,
+  userQuotes: [],
+  quoteMeta: [],
+  notificationPrefs: normalizePrefs(null),
+  notificationPermission: 'undetermined',
+  notificationPlan: [],
+  lastInsightNotifiedAt: null,
+  quoteOfDay: null,
 
   boot: () => {
     initDb();
     set({
+      userQuotes: quotesRepo.listUser(),
+      quoteMeta: quotesRepo.listMeta(),
+      notificationPrefs: normalizePrefs(settingsRepo.getJson<Partial<NotificationPrefs> | null>(NOTIFICATION_PREFS_KEY, null)),
+      notificationPlan: hydratePlan(settingsRepo.getJson<StoredPlan[]>(NOTIFICATION_PLAN_KEY, [])),
+      lastInsightNotifiedAt: settingsRepo.getJson<string | null>(LAST_INSIGHT_KEY, null),
+      quoteOfDay: settingsRepo.getJson<{ date: string; id: string } | null>(QUOTE_OF_DAY_KEY, null),
       behaviors: behaviorsRepo.list(),
       events: eventsRepo.list(),
       journalEntries: journalRepo.list(),
@@ -277,9 +342,113 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
+  addUserQuote: (category, text, author = null) => {
+    const q = quotesRepo.createUser({ category, text: text.trim(), author: author?.trim() || null });
+    set((s) => ({ userQuotes: [q, ...s.userQuotes] }));
+    return q;
+  },
+
+  removeUserQuote: (id) => {
+    quotesRepo.removeUser(id);
+    set((s) => ({ userQuotes: s.userQuotes.filter((q) => q.id !== id), quoteMeta: s.quoteMeta.filter((m) => m.quoteId !== id) }));
+  },
+
+  toggleFavoriteQuote: (id) => {
+    set((s) => {
+      const existing = s.quoteMeta.find((m) => m.quoteId === id);
+      const next: QuoteMeta = existing
+        ? { ...existing, isFavorite: !existing.isFavorite }
+        : { quoteId: id, isFavorite: true, lastShownAt: null, shownCount: 0, hiddenAt: null };
+      quotesRepo.upsertMeta(next);
+      return { quoteMeta: [...s.quoteMeta.filter((m) => m.quoteId !== id), next] };
+    });
+  },
+
+  hideQuote: (id) => {
+    set((s) => {
+      const existing = s.quoteMeta.find((m) => m.quoteId === id);
+      const next: QuoteMeta = {
+        quoteId: id,
+        isFavorite: existing?.isFavorite ?? false,
+        lastShownAt: existing?.lastShownAt ?? null,
+        shownCount: existing?.shownCount ?? 0,
+        hiddenAt: new Date().toISOString(),
+      };
+      quotesRepo.upsertMeta(next);
+      return { quoteMeta: [...s.quoteMeta.filter((m) => m.quoteId !== id), next] };
+    });
+  },
+
+  unhideQuote: (id) => {
+    set((s) => {
+      const existing = s.quoteMeta.find((m) => m.quoteId === id);
+      if (!existing) return s;
+      const next: QuoteMeta = { ...existing, hiddenAt: null };
+      quotesRepo.upsertMeta(next);
+      return { quoteMeta: [...s.quoteMeta.filter((m) => m.quoteId !== id), next] };
+    });
+  },
+
+  markQuoteShown: (id) => {
+    set((s) => {
+      const next = markQuoteShownMeta(s.quoteMeta, id, new Date());
+      quotesRepo.upsertMeta(next);
+      return { quoteMeta: [...s.quoteMeta.filter((m) => m.quoteId !== id), next] };
+    });
+  },
+
+  quoteOfTheDay: () => {
+    const s = get();
+    const today = todayKey();
+    const quotes = allQuotes(s.userQuotes, s.reasons);
+    if (s.quoteOfDay?.date === today) {
+      const q = quotes.find((x) => x.id === s.quoteOfDay!.id);
+      if (q) return q;
+    }
+    // Exclude anything already planned for a notification this week so the card and the push differ.
+    const exclude = new Set(s.notificationPlan.map((p) => p.quoteId).filter(Boolean) as string[]);
+    // The Today card already shows the user's own reason underneath — keep the quote itself editorial.
+    const prefs = { ...s.notificationPrefs, categories: { ...s.notificationPrefs.categories, own: false } };
+    const picked = pickQuote(quotes, { prefs, meta: s.quoteMeta, behaviors: s.behaviors, now: new Date(), exclude });
+    if (!picked) return null;
+    const entry = { date: today, id: picked.id };
+    settingsRepo.setJson(QUOTE_OF_DAY_KEY, entry);
+    set({ quoteOfDay: entry });
+    get().markQuoteShown(picked.id);
+    return picked;
+  },
+
+  updateNotificationPrefs: (patch) => {
+    set((s) => {
+      const notificationPrefs = normalizePrefs({
+        ...s.notificationPrefs,
+        ...patch,
+        kinds: { ...s.notificationPrefs.kinds, ...(patch.kinds ?? {}) },
+        categories: { ...s.notificationPrefs.categories, ...(patch.categories ?? {}) },
+      });
+      settingsRepo.setJson(NOTIFICATION_PREFS_KEY, notificationPrefs);
+      // Keep the legacy boolean in sync for export / older screens.
+      if (notificationPrefs.enabled !== s.settings.notificationsEnabled) settingsRepo.set('notificationsEnabled', notificationPrefs.enabled);
+      return { notificationPrefs, settings: { ...s.settings, notificationsEnabled: notificationPrefs.enabled } };
+    });
+  },
+
+  setNotificationPermission: (p) => set({ notificationPermission: p }),
+
+  setNotificationPlan: (plan, insightNotifiedAt) => {
+    settingsRepo.setJson(NOTIFICATION_PLAN_KEY, dehydratePlan(plan));
+    const patch: Partial<AppState> = { notificationPlan: plan };
+    if (insightNotifiedAt !== undefined) {
+      settingsRepo.setJson(LAST_INSIGHT_KEY, insightNotifiedAt);
+      patch.lastInsightNotifiedAt = insightNotifiedAt;
+    }
+    set(patch);
+  },
+
   updateSetting: (key, value) => {
     settingsRepo.set(key, value);
     set((s) => ({ settings: { ...s.settings, [key]: value } }));
+    if (key === 'notificationsEnabled') get().updateNotificationPrefs({ enabled: !!value });
   },
 
   completeOnboarding: () => {
@@ -299,6 +468,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       settings: DEFAULT_SETTINGS,
       chipUsage: {},
       pendingMilestone: null,
+      userQuotes: [],
+      quoteMeta: [],
+      notificationPrefs: normalizePrefs(null),
+      notificationPlan: [],
+      lastInsightNotifiedAt: null,
+      quoteOfDay: null,
     });
   },
 }));
