@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ModalShell, Text, Button, Surface } from '@/components/ui';
@@ -18,6 +18,7 @@ export default function OnboardingGoal() {
   const router = useRouter();
   const { colors, tokens } = useTheme();
   const { goalMode, set } = useOnboardingStore();
+  const [showGuidance, setShowGuidance] = useState(false);
 
   return (
     <ModalShell onClose={() => router.back()} progress={2 / 5}>
@@ -56,7 +57,8 @@ export default function OnboardingGoal() {
       </View>
 
       <View style={{ marginTop: tokens.spacing['32'] }}>
-        <Button label="Devam et" disabled={!goalMode} onPress={() => router.push('/onboarding/plan')} />
+        {showGuidance && !goalMode ? <Text variant="caption" color="secondary" style={{ marginBottom: tokens.spacing['8'] }}>Sana en yakın hedef modunu seçtiğinde devam edebilirsin.</Text> : null}
+        <Button label="Devam et" onPress={() => goalMode ? router.push('/onboarding/plan') : setShowGuidance(true)} />
       </View>
     </ModalShell>
   );

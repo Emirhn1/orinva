@@ -1,9 +1,12 @@
 import { create } from 'zustand';
-import { BehaviorCategory, GoalMode } from '@/data/types';
+import { BehaviorCategory, BehaviorColor, GoalMode } from '@/data/types';
 
 interface OnboardingDraft {
   category: BehaviorCategory | null;
   nickname: string;
+  verbDid: string;
+  behaviorColor: BehaviorColor;
+  behaviorIcon: string;
   goalMode: GoalMode | null;
   whyChips: string[];
   whyText: string;
@@ -12,7 +15,7 @@ interface OnboardingDraft {
   reset: () => void;
 }
 
-const EMPTY = { category: null, nickname: '', goalMode: null, whyChips: [], whyText: '', planChip: null };
+const EMPTY = { category: null, nickname: '', verbDid: '', behaviorColor: 'indigo' as BehaviorColor, behaviorIcon: 'edit-3', goalMode: null, whyChips: [], whyText: '', planChip: null };
 
 export const useOnboardingStore = create<OnboardingDraft>((set) => ({
   ...EMPTY,

@@ -87,7 +87,7 @@ export function Button({
         accessibilityLabel={label}
         style={{
           height: heights[variant],
-          minHeight: 44,
+          minHeight: tokens.touchTarget.min,
           borderRadius: tokens.radius[radiusKey],
           backgroundColor: bg[variant],
           borderWidth: border[variant].width,

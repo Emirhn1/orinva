@@ -1,14 +1,22 @@
-export type BehaviorCategory = 'nicotine' | 'social_media' | 'custom';
+export type BehaviorCategory = 'nicotine' | 'social_media' | 'sugar' | 'alcohol' | 'gambling' | 'caffeine' | 'gaming' | 'custom';
 
 export type GoalMode = 'quit' | 'reduce' | 'delay' | 'notice';
 
 export type BehaviorUnit = 'event' | 'minutes' | 'count' | 'yesno';
+export type BehaviorColor = 'indigo' | 'navy' | 'success' | 'amber' | 'violet' | 'slateBlue' | 'cyan' | 'bronze';
 
 export interface Behavior {
   id: string;
   /** User-facing nickname — required ("Sabah sigarası", "Instagram akşam"). */
   name: string;
   category: BehaviorCategory;
+  verbUrge: string;
+  verbResist: string;
+  verbDid: string;
+  /** True only for nicknames generated while migrating a legacy record. */
+  needsNameReview: boolean;
+  color: BehaviorColor;
+  icon: string;
   goalMode: GoalMode;
   unit: BehaviorUnit;
   /** Kazanç sayacı: cost per unit (₺), minutes per unit and the pre-app baseline per day. */

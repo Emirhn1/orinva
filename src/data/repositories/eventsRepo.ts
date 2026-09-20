@@ -51,6 +51,11 @@ export const eventsRepo = {
 
   create(input: Omit<UrgeEvent, 'id'>): UrgeEvent {
     const event: UrgeEvent = { ...input, id: generateId() };
+    eventsRepo.restore(event);
+    return event;
+  },
+
+  restore(event: UrgeEvent): void {
     db.runSync(
       `INSERT INTO events (id, behaviorId, kind, startedAt, endedAt, intensity, intensityAfter, mood, contextTags, location, company, note, outcome, outcomeUpdatedAt, delaySeconds, helpedByPlan, source)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
@@ -74,7 +79,6 @@ export const eventsRepo = {
         event.source,
       ]
     );
-    return event;
   },
 
   update(id: string, patch: Partial<UrgeEvent>): UrgeEvent | null {

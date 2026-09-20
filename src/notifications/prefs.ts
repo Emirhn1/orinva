@@ -18,7 +18,7 @@ export const KIND_LABEL: Record<NotificationKind, { title: string; hint: string 
   riskHour: { title: 'Riskli saat', hint: 'Öğrenilen zorlu saatten 20 dk önce destek' },
   gentleReturn: { title: 'Nazik geri dönüş', hint: '3 gün kayıt yoksa tek bir hatırlatma' },
   weekly: { title: 'Haftalık özet', hint: 'Pazar akşamı, bu haftanın kısa özeti' },
-  postSlip: { title: 'Nüksetme sonrası', hint: '"Yaptım"dan 1 saat sonra tek cümle' },
+  postSlip: { title: 'Kayıt sonrası', hint: 'Bir sonuç kaydından 1 saat sonra tek cümle' },
   earnings: { title: 'Kazanç', hint: 'Haftada bir geri kazandıkların' },
   insight: { title: 'İçgörü', hint: 'Yeni bir örüntü bulununca' },
   health: { title: 'Sağlık', hint: 'Temiz süreye bağlı fizyolojik değişimler' },
@@ -30,6 +30,10 @@ export interface NotificationPrefs {
   categories: Record<Exclude<QuoteCategory, 'lyrics'> | 'lyrics', boolean>;
   /** "HH:MM" local times for the quote of the day; max 5. */
   times: string[];
+  scheduleMode: 'times' | 'interval';
+  intervalMinutes: 10 | 15 | 30 | 60 | 120 | 180;
+  activeFrom: string;
+  activeTo: string;
   /** Quiet window (local, may wrap midnight). */
   quietFrom: string;
   quietTo: string;
@@ -64,6 +68,10 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
     lyrics: true,
   },
   times: ['08:00', '20:00'],
+  scheduleMode: 'times',
+  intervalMinutes: 60,
+  activeFrom: '09:00',
+  activeTo: '23:00',
   quietFrom: '00:00',
   quietTo: '07:30',
   maxPerDay: 4,

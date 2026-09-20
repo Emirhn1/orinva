@@ -58,7 +58,7 @@ export default function JournalEntryDetail() {
       </Text>
       {entry.linkedEventId ? (
         <Text variant="label" color="indigo" style={{ marginTop: tokens.spacing['20'] }} onPress={() => router.push({ pathname: '/event-detail', params: { id: entry.linkedEventId! } })} accessibilityRole="button">
-          Bağlı dürtü kaydını aç
+          Bağlı istek kaydını aç
         </Text>
       ) : null}
       <View style={{ marginTop: tokens.spacing['40'] }}>

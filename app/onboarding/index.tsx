@@ -6,24 +6,27 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text, Button } from '@/components/ui';
 import { Icon } from '@/icons';
 import { useTheme } from '@/design/ThemeProvider';
+import { StatusBar } from 'expo-status-bar';
 
 export default function OnboardingWelcome() {
   const router = useRouter();
-  const { tokens } = useTheme();
+  const { mode, colors, tokens } = useTheme();
+  const gradient = mode === 'dark' ? (['#1C2247', '#0B0F19'] as const) : (['#FFFFFF', '#EEF1FA'] as const);
 
   return (
-    <LinearGradient colors={['#1C2247', '#0B0F19']} style={{ flex: 1 }}>
+    <LinearGradient colors={[...gradient]} style={{ flex: 1 }}>
+      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
       <SafeAreaView style={{ flex: 1, justifyContent: 'space-between', paddingHorizontal: tokens.spacing['20'], paddingBottom: tokens.spacing['24'] }}>
         <View />
         <View style={{ alignItems: 'flex-start', gap: tokens.spacing['20'] }}>
-          <View style={{ width: 64, height: 64, borderRadius: tokens.radius.lg, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="wind" size={32} color="#F0F2F8" />
+          <View style={{ width: 64, height: 64, borderRadius: tokens.radius.lg, backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="wind" size={32} color={colors.indigo} />
           </View>
-          <Text variant="display" style={{ color: '#F0F2F8' }}>ORINVA</Text>
-          <Text variant="bodyLarge" style={{ color: '#C3C8DA' }}>
+          <Text variant="display">ORINVA</Text>
+          <Text variant="bodyLarge" color="secondary">
             Kayıtların önce cihazında kalır. Hesap açmadan başlayabilirsin.
           </Text>
-          <Text variant="body" style={{ color: '#9AA2BC' }}>
+          <Text variant="body" color="tertiary">
             İstemediğin bir davranışa yaklaşırken küçük bir duraklama yarat; olanı yargısız kaydet; zamanla kendi örüntünü gör.
           </Text>
         </View>

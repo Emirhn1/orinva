@@ -36,7 +36,7 @@ export default function DailyCheckInSheet() {
     submitCheckIn(answer || null, false);
     bumpChipUsage(picked.map((id) => usageKey('checkin', id)));
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    toast.show({ message: 'Check-in kaydedildi', tone: 'success' });
+    toast.show({ message: 'Günlük yoklama kaydedildi', tone: 'success' });
     close();
   };
 

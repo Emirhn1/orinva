@@ -6,7 +6,7 @@ import { Icon } from '@/icons';
 import { useTheme } from '@/design/ThemeProvider';
 import { UrgeEvent, Behavior } from '@/data/types';
 import { TRIGGER_CHIPS, LOCATION_CHIPS } from '@/content/chips';
-import { todayKey, formatMoney, formatMinutesHuman } from '@/utils/date';
+import { todayKey, dayKey, formatMoney, formatMinutesHuman } from '@/utils/date';
 import {
   RangeDays,
   eventsInWindow,
@@ -54,7 +54,7 @@ const locationLabel = (id: string) => resolveChipLabel(LOCATION_CHIPS, id) ?? id
  */
 export function JourneyAnalytics({ events, behaviors, now, onLogPress, showRange = true }: Props) {
   const { colors, tokens } = useTheme();
-  const [range, setRange] = useState<RangeDays>(30);
+  const [range, setRange] = useState<RangeDays>(7);
   const [selectedCell, setSelectedCell] = useState<HeatCell | null>(null);
 
   const windowEvents = useMemo(() => eventsInWindow(events, range, now), [events, range, now]);
@@ -69,6 +69,10 @@ export function JourneyAnalytics({ events, behaviors, now, onLogPress, showRange
   const insights = useMemo(() => computeInsights(windowEvents, { trigger: triggerLabel, location: locationLabel }), [windowEvents]);
   const comparison = useMemo(() => comparePeriods(windowEvents, previousEvents), [windowEvents, previousEvents]);
   const calendarStates = useMemo(() => computeCalendarStates(events), [events]);
+  const allDataDays = useMemo(() => new Set(events.map((event) => dayKey(event.startedAt))).size, [events]);
+  const windowDataDays = useMemo(() => new Set(windowEvents.map((event) => dayKey(event.startedAt))).size, [windowEvents]);
+  const hasTrendData = windowDataDays >= 7;
+  const hasInsightData = windowEvents.length >= 15 && windowDataDays >= 3;
 
   const rangeLabel = RANGES.find((r) => r.id === range)?.label ?? '';
 
@@ -76,9 +80,10 @@ export function JourneyAnalytics({ events, behaviors, now, onLogPress, showRange
     <View style={{ gap: tokens.spacing['16'] }}>
       {showRange ? (
         <View style={{ flexDirection: 'row', gap: tokens.spacing['8'] }}>
-          {RANGES.map((r) => (
-            <Chip key={r.id} label={r.label} selected={range === r.id} onPress={() => setRange(r.id)} compact />
-          ))}
+          {RANGES.map((r) => {
+            const disabled = (r.id === 30 || r.id === 90) && allDataDays < 3;
+            return <Chip key={r.id} label={r.label} selected={range === r.id} onPress={() => setRange(r.id)} compact disabled={disabled} />;
+          })}
         </View>
       ) : null}
 
@@ -99,15 +104,15 @@ export function JourneyAnalytics({ events, behaviors, now, onLogPress, showRange
               {windowEvents.length === 0
                 ? 'Henüz kayıt yok. Alan hazır.'
                 : rate.closed > 0
-                  ? `${windowEvents.length} dürtü, ${rate.resisted}'inde direndin ya da erteledin.`
-                  : `${windowEvents.length} dürtü kaydettin; sonuçları Günlük'ten tamamlayabilirsin.`}
+                  ? `${rate.closed} sonuçlanmış kaydın ${rate.resisted}'inde direndin ya da erteledin (${Math.round((rate.rate ?? 0) * 100)}%).${windowEvents.length - rate.closed > 0 ? ` ${windowEvents.length - rate.closed} kayıt bu orana girmiyor.` : ''}`
+                  : `${windowEvents.length} istek kaydettin; sonuçları Günlük'ten tamamlayabilirsin.`}
             </Text>
             {comparison.deltaPct !== null ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['4'], marginTop: tokens.spacing['8'] }}>
                 <Icon name={comparison.direction === 'down' ? 'trending-up' : 'activity'} size={14} color={comparison.direction === 'down' ? colors.success : colors.textTertiary} />
                 <Text variant="caption" color={comparison.direction === 'down' ? 'success' : 'tertiary'}>
                   Önceki döneme göre {comparison.deltaPct > 0 ? '+' : ''}
-                  {comparison.deltaPct}% dürtü
+                  {comparison.deltaPct}% istek
                 </Text>
               </View>
             ) : null}
@@ -118,20 +123,25 @@ export function JourneyAnalytics({ events, behaviors, now, onLogPress, showRange
 
       {windowEvents.length === 0 ? (
         <Card padded>
-          <EmptyState icon="trending-up" title="İlk kaydın buraya gelecek" description="Dürtü kaydettikçe örüntün burada şekillenir." actionLabel={onLogPress ? 'Dürtü kaydet' : undefined} onAction={onLogPress} />
+          <EmptyState icon="trending-up" title="İlk kaydın buraya gelecek" description="İstek kaydettikçe örüntün burada şekillenir." actionLabel={onLogPress ? 'İstek kaydet' : undefined} onAction={onLogPress} />
         </Card>
       ) : null}
 
       {/* Trend */}
-      {windowEvents.length > 0 ? (
-        <Card padded title="Trend" caption={range === 7 || range === 30 ? 'günlük' : 'haftalık'}>
+      {windowEvents.length > 0 && hasTrendData ? (
+        <Card padded title="Değişim" caption={range === 7 || range === 30 ? 'günlük' : 'haftalık'}>
           <TrendBars points={series} />
           <EvidenceCaption sample={windowEvents.length} />
+        </Card>
+      ) : windowEvents.length > 0 ? (
+        <Card padded title="Değişim">
+          <Text variant="body" color="secondary">Değişimi göstermek için en az 7 farklı günde kayıt gerekiyor.</Text>
+          <EvidenceCaption sample={windowDataDays} unit="kayıtlı günden" />
         </Card>
       ) : null}
 
       {/* Insights */}
-      {insights.length > 0 ? (
+      {hasInsightData && insights.length > 0 ? (
         <Card padded accent="violet" title="Senin örüntün">
           <View style={{ gap: tokens.spacing['12'] }}>
             {insights.map((i) => (
@@ -143,6 +153,11 @@ export function JourneyAnalytics({ events, behaviors, now, onLogPress, showRange
               </View>
             ))}
           </View>
+          <EvidenceCaption sample={windowEvents.length} />
+        </Card>
+      ) : windowEvents.length > 0 && !hasInsightData ? (
+        <Card padded title="Örüntün">
+          <Text variant="body" color="secondary">Örüntünü görmek için biraz daha veri gerekiyor. En az 3 farklı gün ve 15 kayıt olduğunda burada görünecek.</Text>
           <EvidenceCaption sample={windowEvents.length} />
         </Card>
       ) : null}
@@ -204,7 +219,7 @@ export function JourneyAnalytics({ events, behaviors, now, onLogPress, showRange
             {behaviors
               .filter((b) => b.baselinePerDay)
               .map((b) => {
-                const e = computeEarnings(b, now);
+                const e = computeEarnings(b, now, events);
                 return (
                   <View key={b.id}>
                     {behaviors.length > 1 ? (
@@ -237,7 +252,7 @@ export function JourneyAnalytics({ events, behaviors, now, onLogPress, showRange
               })}
           </View>
           <Text variant="caption" color="tertiary" style={{ marginTop: tokens.spacing['12'] }}>
-            Temiz süre × önceki günlük ortalama üzerinden tahmin.
+            Önceki günlük ortalama ile gerçek kayıtların farkından tahmin.
           </Text>
         </Card>
       ) : null}

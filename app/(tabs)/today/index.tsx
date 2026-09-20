@@ -5,14 +5,16 @@ import { ScreenContainer, Text, Card, Button, IconButton, EmptyState, ProgressRi
 import { Icon } from '@/icons';
 import { useTheme } from '@/design/ThemeProvider';
 import { useAppStore, checkMilestonesForBehavior } from '@/store/useAppStore';
-import { cleanDuration, milestoneProgress, computeEarnings, computeActedStats } from '@/utils/journey';
+import { cleanDuration, milestoneProgress, computeEarnings, computeActedStats, actedSeries } from '@/utils/journey';
 import { formatRelativeTime, timeOfDayGreeting, todayKey, formatDuration, formatRemaining, formatMoney, formatMinutesHuman, dayKey } from '@/utils/date';
 import { useNow } from '@/utils/useNow';
 import { questionForDate } from '@/content/library';
 import { Quote, QUOTE_CATEGORY_LABEL } from '@/content/quotes';
 import { Behavior } from '@/data/types';
-import { actedVerbFor, actedNounFor } from '@/content/behaviors';
+import { behaviorTypeLabel } from '@/content/behaviors';
 import { commitActed } from '@/utils/actedFlow';
+import { toast } from '@/store/useToastStore';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const GREETING: Record<string, string> = {
   morning: 'Günaydın',
@@ -34,6 +36,8 @@ export default function TodayScreen() {
   const quoteOfDay = useAppStore((s) => s.quoteOfDay);
   const quoteMeta = useAppStore((s) => s.quoteMeta);
   const toggleFavoriteQuote = useAppStore((s) => s.toggleFavoriteQuote);
+  const removeEvent = useAppStore((s) => s.removeEvent);
+  const restoreEvent = useAppStore((s) => s.restoreEvent);
   const [quote, setQuote] = useState<Quote | null>(null);
 
   // Picked once per local day (stored), never during render.
@@ -94,9 +98,14 @@ export default function TodayScreen() {
 
   const duration = cleanDuration(focus, now);
   const ms = milestoneProgress(duration.totalHours);
-  const earnings = computeEarnings(focus, now);
+  const earnings = computeEarnings(focus, now, events);
   const acted = computeActedStats(events, focus, now);
   const overTarget = !!focus.dailyTarget && acted.today > focus.dailyTarget;
+  const week = actedSeries(events, focus.id, 7, now);
+  const weekMax = Math.max(1, ...week.map((item) => item.count));
+  const ring = ringValue(duration.totalMinutes);
+  const focusColor = colors[focus.color];
+  const todayActedEvents = todayEvents.filter((event) => event.behaviorId === focus.id && event.outcome === 'acted');
 
   const logActed = () => commitActed(router, focus, { source: 'today' });
 
@@ -113,28 +122,49 @@ export default function TodayScreen() {
         {now.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })}
       </Text>
 
+      {focus.needsNameReview ? (
+        <Surface radius="lg" bordered style={{ padding: tokens.spacing['16'], marginBottom: tokens.spacing['12'], borderColor: colors.indigo }}>
+          <Text variant="label">Bu adı eski kaydından oluşturdum</Text>
+          <Text variant="caption" color="secondary" style={{ marginTop: tokens.spacing['4'] }}>
+            İstersen sana daha anlamlı gelen bir takma adla değiştirebilirsin.
+          </Text>
+          <Text
+            variant="label"
+            color="indigo"
+            style={{ marginTop: tokens.spacing['8'] }}
+            onPress={() => router.push({ pathname: '/behavior-builder', params: { id: focus.id } })}
+            accessibilityRole="button"
+          >
+            Adı düzenle
+          </Text>
+        </Surface>
+      ) : null}
+
       {/* Focus card — live ring + clean time + earnings + actions */}
       <Card hero>
         <Pressable onPress={() => router.push({ pathname: '/(tabs)/journey/[id]', params: { id: focus.id } })} accessibilityRole="button" accessibilityLabel={`${focus.name} detayı`}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['16'] }}>
-            <ProgressRing progress={ms.progress} size={96} color={colors.cyan}>
+            <ProgressRing progress={ms.progress} size={96} color={focusColor}>
               <Text variant="statSmall" tabular>
-                {duration.days}
+                {ring.value}
               </Text>
               <Text variant="caption" color="tertiary">
-                gün
+                {ring.unit}
               </Text>
             </ProgressRing>
             <View style={{ flex: 1 }}>
-              <Text variant="title" numberOfLines={1}>
+              <Text variant="title" numberOfLines={2}>
                 {focus.name}
+              </Text>
+              <Text variant="caption" color="tertiary" style={{ marginTop: tokens.spacing['4'] }}>
+                {behaviorTypeLabel(focus.category)}
               </Text>
               <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['4'] }} tabular>
                 {formatDuration(duration.totalMinutes, 'long')}
               </Text>
               {ms.next ? (
                 <Text variant="caption" color="tertiary" style={{ marginTop: tokens.spacing['4'] }} tabular>
-                  {ms.next.label} için {formatRemaining(ms.remainingMinutes)}
+                  {ms.next.label} doldurmaya {formatRemaining(ms.remainingMinutes)}
                 </Text>
               ) : (
                 <Text variant="caption" color="tertiary" style={{ marginTop: tokens.spacing['4'] }}>
@@ -153,47 +183,58 @@ export default function TodayScreen() {
           </View>
         ) : null}
 
-        {/* Bugün kaç tane — quick count, not tucked behind Journal (this is the whole point of the request) */}
-        {acted.today > 0 || focus.dailyTarget ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['8'], marginTop: tokens.spacing['16'] }}>
-            <Icon name="activity" size={16} color={overTarget ? colors.amber : colors.textSecondary} />
-            <Text variant="label" color={overTarget ? 'amber' : 'secondary'} tabular>
-              Bugün {acted.today}
-              {focus.dailyTarget ? ` / ${focus.dailyTarget}` : ''} {actedNounFor(focus.category)}
-            </Text>
+        <View style={{ marginTop: tokens.spacing['16'], paddingTop: tokens.spacing['16'], borderTopWidth: 1, borderTopColor: colors.border }}>
+          <Text variant="caption" color="tertiary">Bugün {focus.verbDid.toLocaleLowerCase('tr-TR')} kaydı</Text>
+          <Text variant="statLarge" tabular style={{ marginTop: tokens.spacing['4'], color: overTarget ? colors.amber : colors.textPrimary }}>
+            {acted.today}{focus.dailyTarget ? <Text variant="body" color="tertiary">{` / ${focus.dailyTarget} hedef`}</Text> : null}
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: tokens.spacing['8'], height: 52, marginTop: tokens.spacing['12'] }}>
+            {week.map((item, index) => (
+              <View key={item.key} style={{ flex: 1, alignItems: 'center', gap: tokens.spacing['4'] }}>
+                <View style={{ width: '100%', height: Math.max(3, (item.count / weekMax) * 34), borderRadius: tokens.radius.xs, backgroundColor: index === week.length - 1 ? focusColor : colors.surfaceSecondary }} />
+                <Text variant="caption" color="tertiary" style={{ fontSize: 10 }}>{item.label}</Text>
+              </View>
+            ))}
           </View>
-        ) : null}
+        </View>
 
         <View style={{ flexDirection: 'row', gap: tokens.spacing['12'], marginTop: tokens.spacing['20'] }}>
           <View style={{ flex: 1 }}>
-            <Button label="Dürtü geldi" variant="secondary" onPress={() => router.push({ pathname: '/quick-log', params: { behaviorId: focus.id, source: 'today' } })} />
+            <Button label={focus.verbUrge} variant="secondary" onPress={() => router.push({ pathname: '/quick-log', params: { behaviorId: focus.id, source: 'today' } })} />
           </View>
           <View style={{ flex: 1 }}>
-            <Button label="Direndim" variant="ghost" onPress={() => router.push({ pathname: '/quick-log', params: { behaviorId: focus.id, outcome: 'resisted', source: 'today' } })} />
+            <Button label={focus.verbResist} variant="ghost" onPress={() => router.push({ pathname: '/quick-log', params: { behaviorId: focus.id, outcome: 'resisted', source: 'today' } })} />
           </View>
         </View>
 
         {/* Quiet, one-tap count — no flow, no judgement, just a number (see chat: "sigara içtim yapıcam ama olmuyor"). */}
-        <Pressable onPress={logActed} accessibilityRole="button" accessibilityLabel={`Bir ${focus.category === 'nicotine' ? 'sigara' : 'kez'} ${actedVerbFor(focus.category).toLowerCase()} olarak kaydet`} style={{ marginTop: tokens.spacing['12'], alignSelf: 'center', paddingVertical: tokens.spacing['8'], paddingHorizontal: tokens.spacing['16'] }}>
+        <Pressable onPress={logActed} hitSlop={8} accessibilityRole="button" accessibilityLabel={`${focus.verbDid} olarak kaydet`} style={{ marginTop: tokens.spacing['12'], alignSelf: 'center', minHeight: 48, minWidth: 96, justifyContent: 'center', alignItems: 'center', paddingHorizontal: tokens.spacing['16'] }}>
           <Text variant="caption" color="tertiary">
-            + {actedVerbFor(focus.category)}
+            + {focus.verbDid}
           </Text>
         </Pressable>
       </Card>
 
       {/* H14 — the other behaviors, one tap away */}
       {behaviors.length > 1 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: tokens.spacing['12'], marginHorizontal: -tokens.spacing['20'] }} contentContainerStyle={{ paddingHorizontal: tokens.spacing['20'], gap: tokens.spacing['8'] }}>
+        <View style={{ marginTop: tokens.spacing['12'], marginHorizontal: -tokens.spacing['20'] }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: tokens.spacing['20'], paddingRight: tokens.spacing['48'], gap: tokens.spacing['8'] }}>
           {behaviors.map((b) => {
             const d = cleanDuration(b, now);
             const selected = b.id === focus.id;
             return (
               <Pressable key={b.id} onPress={() => setFocusId(b.id)} accessibilityRole="button" accessibilityState={{ selected }}>
-                <Surface radius="md" bordered style={{ paddingHorizontal: tokens.spacing['12'], paddingVertical: tokens.spacing['8'], borderColor: selected ? colors.indigo : colors.border, borderWidth: selected ? 1.5 : 1, minWidth: 120 }}>
-                  <Text variant="label" numberOfLines={1}>
+                <Surface radius="md" bordered style={{ paddingHorizontal: tokens.spacing['12'], paddingVertical: tokens.spacing['8'], borderColor: selected ? colors[b.color] : colors.border, borderLeftWidth: 4, borderLeftColor: colors[b.color], backgroundColor: selected ? colors[b.color] : colors.surface, minWidth: 144 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['8'] }}>
+                    <Icon name={b.icon as any} size={16} color={selected ? colors.onAccent : colors[b.color]} />
+                    <Text variant="label" numberOfLines={2} style={{ flex: 1, color: selected ? colors.onAccent : colors.textPrimary }}>
                     {b.name}
+                    </Text>
+                  </View>
+                  <Text variant="caption" numberOfLines={1} style={{ color: selected ? colors.onAccent : colors.textTertiary, opacity: selected ? 0.85 : 1 }}>
+                    {behaviorTypeLabel(b.category)}
                   </Text>
-                  <Text variant="caption" color="secondary" tabular>
+                  <Text variant="caption" tabular style={{ color: selected ? colors.onAccent : colors.textSecondary, opacity: selected ? 0.85 : 1 }}>
                     {formatDuration(d.totalMinutes)}
                   </Text>
                 </Surface>
@@ -201,6 +242,9 @@ export default function TodayScreen() {
             );
           })}
         </ScrollView>
+        <LinearGradient pointerEvents="none" colors={['transparent', colors.background]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ position: 'absolute', right: 0, top: 0, bottom: behaviors.length > 3 ? 13 : 0, width: 36 }} />
+        {behaviors.length > 3 ? <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 4, marginTop: tokens.spacing['8'] }}>{behaviors.map((b) => <View key={b.id} style={{ width: focus.id === b.id ? 12 : 5, height: 5, borderRadius: 3, backgroundColor: focus.id === b.id ? colors.indigo : colors.borderStrong }} />)}</View> : null}
+        </View>
       ) : null}
 
       {/* Today summary — immediate feedback for the data you gave */}
@@ -210,7 +254,7 @@ export default function TodayScreen() {
             <View>
               <Text variant="label">Bugün</Text>
               <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['4'] }}>
-                {todayEvents.length} dürtü · {todayResisted} direndin{todayOpen.length ? ` · ${todayOpen.length} açık` : ''}
+                Bugün gelen istek: {todayEvents.length} · direndiğin/ertelediğin: {todayResisted}{todayOpen.length ? ` · sonuçsuz: ${todayOpen.length}` : ''}
               </Text>
             </View>
             <Text variant="label" color="indigo" onPress={() => router.push('/(tabs)/journal')} accessibilityRole="button">
@@ -221,13 +265,40 @@ export default function TodayScreen() {
             <Pressable onPress={() => router.push({ pathname: '/event-detail', params: { id: todayOpen[0].id } })} style={{ marginTop: tokens.spacing['12'], flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['8'] }}>
               <OutcomeBadge outcome={null} />
               <Text variant="caption" color="secondary" style={{ flex: 1 }}>
-                {formatRelativeTime(todayOpen[0].startedAt)} kaydettiğin dürtü nasıl bitti?
+                {formatRelativeTime(todayOpen[0].startedAt)} kaydettiğin istek nasıl bitti?
               </Text>
               <Icon name="chevron-right" size={16} color={colors.textTertiary} />
             </Pressable>
           ) : null}
         </Card>
       ) : null}
+
+      <Card padded style={{ marginTop: tokens.spacing['16'] }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View>
+            <Text variant="label">Bugünün {focus.name} kayıtları</Text>
+            <Text variant="caption" color="tertiary">Yanlış kaydı buradan kaldırabilirsin.</Text>
+          </View>
+          <Pressable onPress={logActed} hitSlop={8} accessibilityRole="button" accessibilityLabel={`${focus.verbDid} kaydı ekle`} style={{ minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="plus" size={20} color={focusColor} />
+          </Pressable>
+        </View>
+        {todayActedEvents.length ? (
+          <View style={{ marginTop: tokens.spacing['12'], gap: tokens.spacing['8'] }}>
+            {todayActedEvents.map((event) => (
+              <View key={event.id} style={{ flexDirection: 'row', alignItems: 'center', minHeight: 48, borderTopWidth: 1, borderTopColor: colors.border }}>
+                <Text variant="body" style={{ flex: 1 }}>{focus.verbDid} · {new Date(event.startedAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</Text>
+                <Pressable onPress={() => {
+                  removeEvent(event.id);
+                  toast.show({ message: 'Kayıt kaldırıldı', icon: 'info', actionLabel: 'Geri al', durationMs: tokens.motion.undoWindow, onAction: () => restoreEvent(event) });
+                }} hitSlop={10} accessibilityRole="button" accessibilityLabel="Kaydı kaldır" style={{ minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="trash-2" size={18} color={colors.textTertiary} />
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        ) : <Text variant="caption" color="tertiary" style={{ marginTop: tokens.spacing['12'] }}>Bugün bu davranış için yapılmış kayıt yok.</Text>}
+      </Card>
 
       {/* Check-in — a micro task, chips inside */}
       <Pressable onPress={() => router.push('/daily-checkin')} style={{ marginTop: tokens.spacing['16'] }} accessibilityRole="button">
@@ -239,7 +310,7 @@ export default function TodayScreen() {
             <View style={{ flex: 1 }}>
               {todaysCheckIn && !todaysCheckIn.skipped ? (
                 <>
-                  <Text variant="label">Bugünkü check-in tamamlandı</Text>
+                  <Text variant="label">Bugünkü yoklama tamamlandı</Text>
                   <Text variant="caption" color="secondary" numberOfLines={1}>
                     {todaysCheckIn.answer || todaysCheckIn.question}
                   </Text>
@@ -321,4 +392,12 @@ function Stat({ value, label }: { value: string; label: string }) {
       </Text>
     </View>
   );
+}
+
+function ringValue(totalMinutes: number): { value: number | string; unit: string } {
+  const minutes = Math.max(0, Math.floor(totalMinutes));
+  if (minutes < 1) return { value: 'şimdi', unit: 'başladı' };
+  if (minutes < 60) return { value: minutes, unit: 'dk' };
+  if (minutes < 1440) return { value: Math.floor(minutes / 60), unit: 'sa' };
+  return { value: Math.floor(minutes / 1440), unit: 'gün' };
 }

@@ -123,18 +123,20 @@ export const iconSize = {
 } as const;
 
 export const touchTarget = {
-  min: 44,
+  min: 48,
   chip: 44,
 };
 
+export const EMERGENCY_FAB_HEIGHT = 60;
+
 export const componentHeight = {
   /** Space screens reserve at the bottom so content clears the floating "Zor An" CTA (H1). */
-  fabClearance: 60 + 12 + 24,
+  fabClearance: EMERGENCY_FAB_HEIGHT + 12 + 24,
   buttonPrimary: 52,
   buttonSecondary: 48,
-  buttonGhost: 44,
+  buttonGhost: 48,
   buttonCriticalHeight: 48,
-  cravingHelpCta: 60,
+  cravingHelpCta: EMERGENCY_FAB_HEIGHT,
   input: 52,
   bottomNav: 64,
   topNav: 56,

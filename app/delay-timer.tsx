@@ -81,8 +81,9 @@ export default function DelayTimerScreen() {
       commitActed(router, behavior, { eventId, source: 'delay_timer', extra: { delaySeconds, helpedByPlan: 'delay' }, afterQuiet: () => router.replace('/(tabs)/today') });
       return;
     }
+    const snapshot = eventId ? useAppStore.getState().events.find((event) => event.id === eventId) : undefined;
     if (eventId) closeEvent(eventId, 'resisted', { delaySeconds, helpedByPlan: 'delay' });
-    toast.show({ message: 'Erteledin ve geçti. Kaydettim.', tone: 'success' });
+    toast.show({ message: 'Erteledin ve geçti. Kaydettim.', tone: 'success', actionLabel: 'Geri al', durationMs: tokens.motion.undoWindow, onAction: () => snapshot && updateEvent(snapshot.id, snapshot) });
     router.replace('/(tabs)/today');
   };
 
@@ -160,7 +161,7 @@ export default function DelayTimerScreen() {
           <View style={{ gap: tokens.spacing['12'] }}>
             <Button label="Hayır, geçti" onPress={() => finish('passed')} />
             <Button label="Biraz daha ertele" variant="secondary" onPress={() => setStep('pick')} />
-            <Button label="Evet, yaptım" variant="ghost" onPress={() => finish('acted')} />
+            <Button label={`Evet, ${behavior.verbDid.toLocaleLowerCase('tr-TR')}`} variant="ghost" onPress={() => finish('acted')} />
           </View>
         </View>
       ) : null}

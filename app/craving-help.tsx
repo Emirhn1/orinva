@@ -80,8 +80,9 @@ export default function CravingHelpScreen() {
       commitActed(router, behavior, { eventId, source: 'craving_help', extra: { helpedByPlan: selectedPlan }, afterQuiet: () => router.replace('/(tabs)/today') });
       return;
     }
+    const snapshot = eventId ? useAppStore.getState().events.find((event) => event.id === eventId) : undefined;
     if (eventId) closeEvent(eventId, outcome, { helpedByPlan: selectedPlan });
-    if (outcome === 'resisted') toast.show({ message: 'Geçti. Kaydettim.', tone: 'success' });
+    if (outcome === 'resisted') toast.show({ message: 'Geçti. Kaydettim.', tone: 'success', actionLabel: 'Geri al', durationMs: tokens.motion.undoWindow, onAction: () => snapshot && updateEvent(snapshot.id, snapshot) });
     router.replace('/(tabs)/today');
   };
 
@@ -97,7 +98,7 @@ export default function CravingHelpScreen() {
     <ModalShell onClose={() => router.back()} progress={(stepIndex + 1) / 3} footer={footer}>
       {step === 'notice' && (
         <View>
-          <Text variant="headline">Şu an dürtü var</Text>
+          <Text variant="headline">{behavior.verbUrge}</Text>
           <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['8'], marginBottom: tokens.spacing['24'] }}>
             Burada olduğun için iyi. İstersen işaretle, istersen doğrudan devam et.
           </Text>
@@ -131,14 +132,14 @@ export default function CravingHelpScreen() {
         />
       )}
 
-      {step === 'closure' && <ClosureStep onOutcome={finish} />}
+      {step === 'closure' && <ClosureStep onOutcome={finish} resistedLabel={behavior.verbResist} actedLabel={behavior.verbDid} />}
       {step === 'help' && <HelpStep onBack={() => setStep('closure')} />}
     </ModalShell>
   );
 }
 
 const HANDOFF_OPTIONS: { id: string; label: string; description: string; icon: IconName }[] = [
-  { id: 'wave', label: 'Dalgayı bekle', description: '3 dakika. Dürtü yükselir, zirve yapar, geçer.', icon: 'wind' },
+  { id: 'wave', label: 'Dalgayı bekle', description: '3 dakika. İstek yükselir, zirve yapar, geçer.', icon: 'wind' },
   { id: 'delay', label: 'Ertele', description: '2–20 dakika sonra tekrar sor.', icon: 'clock' },
 ];
 
@@ -244,7 +245,7 @@ function OptionRow({ icon, label, description, selected, accent, onPress }: { ic
   );
 }
 
-function ClosureStep({ onOutcome }: { onOutcome: (o: EventOutcome) => void }) {
+function ClosureStep({ onOutcome, resistedLabel, actedLabel }: { onOutcome: (o: EventOutcome) => void; resistedLabel: string; actedLabel: string }) {
   const { tokens } = useTheme();
   return (
     <View>
@@ -253,9 +254,9 @@ function ClosureStep({ onOutcome }: { onOutcome: (o: EventOutcome) => void }) {
         Ne olursa olsun, burada olman değerli.
       </Text>
       <View style={{ gap: tokens.spacing['12'] }}>
-        <Button label="Geçti" onPress={() => onOutcome('resisted')} />
+        <Button label={resistedLabel} onPress={() => onOutcome('resisted')} />
         <Button label="Erteledim" variant="secondary" onPress={() => onOutcome('delayed')} />
-        <Button label="Yaptım" variant="ghost" onPress={() => onOutcome('acted')} />
+        <Button label={actedLabel} variant="ghost" onPress={() => onOutcome('acted')} />
         <Button label="Emin değilim" variant="ghost" onPress={() => onOutcome('unsure')} />
       </View>
     </View>

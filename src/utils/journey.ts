@@ -395,15 +395,16 @@ export interface Earnings {
 }
 
 /**
- * Avoided units = baseline/day × clean days (fractional). Conservative and
- * explainable: "önceden günde 15 içiyordun, 3.2 gündür temizsin → ~48 içilmedi".
+ * Yapılmayan adet = uygulamadan önceki günlük ortalamaya göre beklenen toplam
+ * eksi aynı süredeki gerçek "yaptım" kayıtları. Azaltma modunda da sıfırlanmaz.
  */
-export function computeEarnings(behavior: Behavior, now: Date = new Date()): Earnings {
+export function computeEarnings(behavior: Behavior, now: Date = new Date(), events: UrgeEvent[] = []): Earnings {
   const baseline = behavior.baselinePerDay;
   if (!baseline || baseline <= 0) return { unitsAvoided: null, moneySaved: null, minutesRecovered: null, goalProgress: null };
-  const { totalHours } = cleanDuration(behavior, now);
-  const days = totalHours / 24;
-  const units = baseline * days;
+  const startedAt = new Date(behavior.createdAt).getTime();
+  const days = Math.max(0, now.getTime() - startedAt) / 86_400_000;
+  const acted = events.filter((event) => event.behaviorId === behavior.id && event.outcome === 'acted' && new Date(event.startedAt).getTime() >= startedAt && new Date(event.startedAt).getTime() <= now.getTime()).length;
+  const units = Math.max(0, baseline * days - acted);
   const money = behavior.costPerUnit ? units * behavior.costPerUnit : null;
   const minutes = behavior.minutesPerUnit ? units * behavior.minutesPerUnit : null;
   const goalProgress =
@@ -451,7 +452,7 @@ export interface Insight {
 
 export function computeInsights(events: UrgeEvent[], labels: { trigger: (id: string) => string; location: (id: string) => string }): Insight[] {
   const out: Insight[] = [];
-  if (events.length < 5) return out;
+  if (events.length < 15 || new Set(events.map((event) => dayKey(event.startedAt))).size < 3) return out;
 
   const heat = computeHeatmap(events);
   if (heat.peak && heat.peak.count >= 3 && heat.max >= Math.max(3, events.length * 0.2)) {
@@ -475,12 +476,12 @@ export function computeInsights(events: UrgeEvent[], labels: { trigger: (id: str
 
   const intensity = computeIntensityTrend(events);
   if (intensity.earlyAvg !== null && intensity.lateAvg !== null && intensity.sample >= 8 && intensity.earlyAvg - intensity.lateAvg >= 0.5) {
-    out.push({ id: 'intensity', text: 'Dürtülerin şiddeti zamanla azalıyor. Bu, bırakmadan önceki en güçlü kanıt.', tone: 'success' });
+    out.push({ id: 'intensity', text: 'İsteklerinin şiddeti zamanla azalıyor. Bu, değişimi gösteren güçlü bir işaret.', tone: 'success' });
   }
   if (intensity.afterAvgDrop !== null && intensity.afterSample >= 3 && intensity.afterAvgDrop >= 1) {
     out.push({
       id: 'wave',
-      text: `Dalgayı beklediğinde dürtü ortalama ${intensity.afterAvgDrop.toFixed(1)} puan düşüyor.`,
+      text: `Dalgayı beklediğinde istek ortalama ${intensity.afterAvgDrop.toFixed(1)} puan düşüyor.`,
       tone: 'success',
     });
   }
@@ -509,7 +510,7 @@ export function outcomeLabel(outcome: EventOutcome): string {
     case 'unsure':
       return 'Emin değilim';
     default:
-      return 'Açık';
+      return 'Sonucu ekle';
   }
 }
 

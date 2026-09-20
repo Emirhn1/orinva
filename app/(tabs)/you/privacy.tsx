@@ -16,11 +16,11 @@ export default function PrivacyScreen() {
       </View>
 
       <Card padded>
-        <Text variant="label">Local-first</Text>
+        <Text variant="label">Verilerin cihazında kalır</Text>
         <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['8'] }}>
-          Tüm kayıtların — dürtüler, journal, nedenler — yalnızca bu cihazda, şifreli bir veritabanında tutulur.
-          Hesap açman gerekmez ve varsayılan olarak hiçbir veri cihazdan çıkmaz.
+          Kayıtların cihazında saklanır, hiçbir sunucuya gönderilmez. Hesap açman gerekmez.
         </Text>
+        {/* TODO(dev-client): SQLCipher eklendiğinde doğrulanmış şifreleme bilgisini yeniden belirt. */}
       </Card>
 
       <Card padded style={{ marginTop: tokens.spacing['16'] }}>

@@ -82,9 +82,10 @@ export default function WaveModeScreen() {
       commitActed(router, behavior, { eventId, source: 'wave', extra: { intensityAfter: after, helpedByPlan: 'wave' }, afterQuiet: () => router.replace('/(tabs)/today') });
       return;
     }
+    const snapshot = eventId ? useAppStore.getState().events.find((event) => event.id === eventId) : undefined;
     if (eventId) closeEvent(eventId, outcome, { intensityAfter: after, helpedByPlan: 'wave' });
     if (outcome === 'resisted') {
-      toast.show({ message: 'Dalga geçti. Kaydettim.', tone: 'success' });
+      toast.show({ message: 'Dalga geçti. Kaydettim.', tone: 'success', actionLabel: 'Geri al', durationMs: tokens.motion.undoWindow, onAction: () => snapshot && updateEvent(snapshot.id, snapshot) });
     }
     router.replace('/(tabs)/today');
   };
@@ -97,6 +98,8 @@ export default function WaveModeScreen() {
 
   const mm = String(Math.floor(remaining / 60)).padStart(1, '0');
   const ss = String(remaining % 60).padStart(2, '0');
+
+  if (!behavior) return null;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -131,7 +134,7 @@ export default function WaveModeScreen() {
               {mm}:{ss}
             </Text>
             <Text variant="body" color="secondary" style={{ textAlign: 'center', marginTop: tokens.spacing['16'], maxWidth: 320 }}>
-              Dürtü bir dalga gibi yükselir, zirve yapar ve geçer. Hiçbir şey yapman gerekmiyor — sadece izle.
+              İstek bir dalga gibi yükselir, zirve yapar ve geçer. Hiçbir şey yapman gerekmiyor — sadece izle.
             </Text>
             {reason ? (
               <Surface radius="lg" bordered style={{ padding: tokens.spacing['16'], marginTop: tokens.spacing['24'], maxWidth: 360 }}>
@@ -157,7 +160,7 @@ export default function WaveModeScreen() {
 
       {step === 'after' ? (
         <View style={{ flex: 1, paddingHorizontal: tokens.spacing['20'], justifyContent: 'center' }}>
-          <Text variant="headline">Dürtü şimdi ne kadar güçlü?</Text>
+          <Text variant="headline">İstek şimdi ne kadar güçlü?</Text>
           <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['8'], marginBottom: tokens.spacing['24'] }}>
             Kendi kanıtını gör.
           </Text>
@@ -173,7 +176,7 @@ export default function WaveModeScreen() {
           <View style={{ marginTop: tokens.spacing['32'], gap: tokens.spacing['12'] }}>
             <Button label="Geçti" onPress={() => finish('resisted')} />
             <Button label="Hâlâ istiyorum · ertele" variant="secondary" onPress={stillWant} />
-            <Button label="Yaptım" variant="ghost" onPress={() => finish('acted')} />
+            <Button label={behavior.verbDid} variant="ghost" onPress={() => finish('acted')} />
           </View>
         </View>
       ) : null}

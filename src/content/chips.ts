@@ -103,7 +103,7 @@ export const CHECKIN_PROMPTS: CheckInPrompt[] = [
       { id: 'boredom', label: 'Can sıkıntısı' },
       { id: 'tired', label: 'Yorgunluk' },
       { id: 'social', label: 'Sosyal ortam' },
-      { id: 'urges', label: 'Dürtüler' },
+      { id: 'urges', label: 'İstekler' },
       { id: 'nothing', label: 'Pek bir şey' },
     ],
   },
@@ -131,7 +131,7 @@ export const CHECKIN_PROMPTS: CheckInPrompt[] = [
   {
     question: 'Bugün hangi küçük başarıyı görmezden geldin?',
     chips: [
-      { id: 'passed_urge', label: 'Bir dürtüyü geçirdim' },
+      { id: 'passed_urge', label: 'Bir isteği geçirdim' },
       { id: 'less', label: 'Normalden az yaptım' },
       { id: 'delayed', label: 'Erteledim' },
       { id: 'no_judgement', label: 'Kaydettim, yargılamadım' },

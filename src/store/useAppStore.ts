@@ -110,6 +110,7 @@ interface AppState {
   closeEvent: (id: string, outcome: EventOutcome, extra?: CloseEventExtra) => void;
   updateEvent: (id: string, patch: Partial<UrgeEvent>) => void;
   removeEvent: (id: string) => void;
+  restoreEvent: (event: UrgeEvent) => void;
 
   addJournalEntry: (input: { text: string; linkedEventId?: string | null; tag?: string | null; mood?: string | null }) => JournalEntry;
   updateJournalEntry: (id: string, patch: Partial<JournalEntry>) => void;
@@ -283,6 +284,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       const events = s.events.filter((e) => e.id !== id);
       const behaviors = recomputeCleanSince(existing.behaviorId, events, s.behaviors);
       return { events, behaviors };
+    });
+  },
+
+  restoreEvent: (event) => {
+    eventsRepo.restore(event);
+    set((s) => {
+      const events = [event, ...s.events].sort((a, b) => (a.startedAt < b.startedAt ? 1 : -1));
+      return { events, behaviors: recomputeCleanSince(event.behaviorId, events, s.behaviors) };
     });
   },
 

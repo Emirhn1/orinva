@@ -2,11 +2,12 @@ import * as SQLite from 'expo-sqlite';
 
 // A project-specific file name — avoids colliding with another Expo Go
 // project's local database on the same device/simulator.
-export const db = SQLite.openDatabaseSync('orinva-mobile-v1.db');
+const DATABASE_NAME = 'orinva-mobile-v1.db';
+const MIGRATION_BACKUP_NAME = 'orinva-mobile-v1.migration-backup.db';
 
-const SCHEMA_VERSION = 4;
+export const db = SQLite.openDatabaseSync(DATABASE_NAME);
 
-const TABLE_NAMES = ['behaviors', 'events', 'journal_entries', 'reasons', 'checkins', 'milestones', 'kv_settings', 'user_quotes', 'quote_meta'];
+const SCHEMA_VERSION = 7;
 
 function hasColumn(table: string, column: string): boolean {
   const row = db.getFirstSync<{ cnt: number }>(
@@ -22,15 +23,6 @@ function tableExists(table: string): boolean {
   return !!row;
 }
 
-function schemaLooksStale(): boolean {
-  try {
-    if (tableExists('events') && !hasColumn('events', 'startedAt')) return true;
-    return false;
-  } catch {
-    return true;
-  }
-}
-
 /** Adds a column if it's missing — safe to call on every boot. */
 function addColumnIfMissing(table: string, column: string, definition: string) {
   if (!tableExists(table)) return;
@@ -43,42 +35,7 @@ function addColumnIfMissing(table: string, column: string, definition: string) {
  * chips (triggers/location/company), delay timer + wave mode measurements,
  * entry-point tracking, and the earnings counter fields on behaviors.
  */
-function migrateToV2() {
-  addColumnIfMissing('events', 'intensityAfter', 'INTEGER');
-  addColumnIfMissing('events', 'location', 'TEXT');
-  addColumnIfMissing('events', 'company', 'TEXT');
-  addColumnIfMissing('events', 'outcomeUpdatedAt', 'TEXT');
-  addColumnIfMissing('events', 'delaySeconds', 'INTEGER');
-  addColumnIfMissing('events', 'source', "TEXT NOT NULL DEFAULT 'app'");
-
-  addColumnIfMissing('behaviors', 'minutesPerUnit', 'REAL');
-  addColumnIfMissing('behaviors', 'baselinePerDay', 'REAL');
-  addColumnIfMissing('behaviors', 'savingsGoalLabel', 'TEXT');
-  addColumnIfMissing('behaviors', 'savingsGoalAmount', 'REAL');
-  addColumnIfMissing('behaviors', 'dailyTarget', 'REAL');
-
-  addColumnIfMissing('journal_entries', 'mood', 'TEXT');
-
-  if (tableExists('events') && hasColumn('events', 'kind')) {
-    // Old rows: kind carried the outcome. Fold it into `outcome` and normalise `passed` → `resisted`.
-    db.execSync(`
-      UPDATE events SET outcome = 'resisted' WHERE outcome = 'passed';
-      UPDATE events SET outcome = 'resisted', outcomeUpdatedAt = startedAt WHERE kind = 'resisted' AND outcome IS NULL;
-      UPDATE events SET outcome = 'acted', outcomeUpdatedAt = startedAt WHERE kind = 'acted' AND outcome IS NULL;
-      UPDATE events SET kind = 'urge';
-    `);
-  }
-}
-
-export function initDb() {
-  db.execSync('PRAGMA journal_mode = WAL;');
-
-  if (schemaLooksStale()) {
-    for (const table of TABLE_NAMES) {
-      db.execSync(`DROP TABLE IF EXISTS ${table};`);
-    }
-  }
-
+function migrateToV1() {
   db.execSync(`
     CREATE TABLE IF NOT EXISTS behaviors (
       id TEXT PRIMARY KEY NOT NULL,
@@ -88,11 +45,6 @@ export function initDb() {
       unit TEXT NOT NULL,
       costPerUnit REAL,
       costCurrency TEXT,
-      minutesPerUnit REAL,
-      baselinePerDay REAL,
-      savingsGoalLabel TEXT,
-      savingsGoalAmount REAL,
-      dailyTarget REAL,
       planAlternative TEXT,
       createdAt TEXT NOT NULL,
       archived INTEGER NOT NULL DEFAULT 0,
@@ -106,17 +58,11 @@ export function initDb() {
       startedAt TEXT NOT NULL,
       endedAt TEXT,
       intensity INTEGER,
-      intensityAfter INTEGER,
       mood TEXT,
       contextTags TEXT NOT NULL DEFAULT '[]',
-      location TEXT,
-      company TEXT,
       note TEXT,
       outcome TEXT,
-      outcomeUpdatedAt TEXT,
-      delaySeconds INTEGER,
-      helpedByPlan TEXT,
-      source TEXT NOT NULL DEFAULT 'app'
+      helpedByPlan TEXT
     );
 
     CREATE TABLE IF NOT EXISTS journal_entries (
@@ -124,8 +70,7 @@ export function initDb() {
       createdAt TEXT NOT NULL,
       text TEXT NOT NULL,
       linkedEventId TEXT,
-      tag TEXT,
-      mood TEXT
+      tag TEXT
     );
 
     CREATE TABLE IF NOT EXISTS reasons (
@@ -157,7 +102,38 @@ export function initDb() {
       key TEXT PRIMARY KEY NOT NULL,
       value TEXT NOT NULL
     );
+  `);
+}
 
+function migrateToV2() {
+  addColumnIfMissing('events', 'intensityAfter', 'INTEGER');
+  addColumnIfMissing('events', 'location', 'TEXT');
+  addColumnIfMissing('events', 'company', 'TEXT');
+  addColumnIfMissing('events', 'outcomeUpdatedAt', 'TEXT');
+  addColumnIfMissing('events', 'delaySeconds', 'INTEGER');
+  addColumnIfMissing('events', 'source', "TEXT NOT NULL DEFAULT 'app'");
+
+  addColumnIfMissing('behaviors', 'minutesPerUnit', 'REAL');
+  addColumnIfMissing('behaviors', 'baselinePerDay', 'REAL');
+  addColumnIfMissing('behaviors', 'savingsGoalLabel', 'TEXT');
+  addColumnIfMissing('behaviors', 'savingsGoalAmount', 'REAL');
+  addColumnIfMissing('behaviors', 'dailyTarget', 'REAL');
+
+  addColumnIfMissing('journal_entries', 'mood', 'TEXT');
+
+  if (tableExists('events') && hasColumn('events', 'kind')) {
+    // Old rows: kind carried the outcome. Fold it into `outcome` and normalise `passed` → `resisted`.
+    db.execSync(`
+      UPDATE events SET outcome = 'resisted' WHERE outcome = 'passed';
+      UPDATE events SET outcome = 'resisted', outcomeUpdatedAt = startedAt WHERE kind = 'resisted' AND outcome IS NULL;
+      UPDATE events SET outcome = 'acted', outcomeUpdatedAt = startedAt WHERE kind = 'acted' AND outcome IS NULL;
+      UPDATE events SET kind = 'urge';
+    `);
+  }
+}
+
+function migrateToV3() {
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS user_quotes (
       id TEXT PRIMARY KEY NOT NULL,
       category TEXT NOT NULL,
@@ -174,10 +150,163 @@ export function initDb() {
       hiddenAt TEXT
     );
   `);
+}
 
-  migrateToV2();
+function migrateToV4() {
+  // Version checkpoint for databases created by the previous schema manager.
+}
 
-  db.runSync(`INSERT OR REPLACE INTO kv_settings (key, value) VALUES ('schemaVersion', ?);`, [String(SCHEMA_VERSION)]);
+function migrateToV5() {
+  addColumnIfMissing('behaviors', 'verb_urge', "TEXT NOT NULL DEFAULT 'Canım çekti'");
+  addColumnIfMissing('behaviors', 'verb_resist', "TEXT NOT NULL DEFAULT 'Direndim'");
+  addColumnIfMissing('behaviors', 'verb_did', "TEXT NOT NULL DEFAULT 'Yaptım'");
+  addColumnIfMissing('behaviors', 'needs_name_review', 'INTEGER NOT NULL DEFAULT 0');
+
+  if (!tableExists('behaviors')) return;
+
+  const verbRows = db.getAllSync<{ id: string; category: string }>('SELECT id, category FROM behaviors;');
+  for (const row of verbRows) {
+    const verbs = verbsForCategory(row.category);
+    db.runSync('UPDATE behaviors SET verb_urge = ?, verb_resist = ?, verb_did = ? WHERE id = ?;', [verbs.urge, verbs.resist, verbs.did, row.id]);
+  }
+
+  migrateLegacyBehaviorNames();
+}
+
+function migrateToV6() {
+  addColumnIfMissing('behaviors', 'color', "TEXT NOT NULL DEFAULT 'indigo'");
+  addColumnIfMissing('behaviors', 'icon', "TEXT NOT NULL DEFAULT 'edit-3'");
+  if (!tableExists('behaviors')) return;
+  const rows = db.getAllSync<{ id: string; category: string }>('SELECT id, category FROM behaviors;');
+  const appearance: Record<string, [string, string]> = {
+    nicotine: ['amber', 'zap'], social_media: ['indigo', 'grid'], sugar: ['violet', 'heart'],
+    alcohol: ['slateBlue', 'droplet'], gambling: ['bronze', 'dollar-sign'], caffeine: ['navy', 'coffee'],
+    gaming: ['cyan', 'monitor'], custom: ['success', 'edit-3'],
+  };
+  for (const row of rows) {
+    const [color, icon] = appearance[row.category] ?? ['indigo', 'edit-3'];
+    db.runSync('UPDATE behaviors SET color = ?, icon = ? WHERE id = ?;', [color, icon, row.id]);
+  }
+}
+
+function migrateToV7() {
+  if (tableExists('behaviors') && hasColumn('behaviors', 'color')) {
+    db.runSync("UPDATE behaviors SET color = 'navy' WHERE color = 'terracotta';");
+  }
+}
+
+function verbsForCategory(category: string): { urge: string; resist: string; did: string } {
+  switch (category) {
+    case 'social_media':
+      return { urge: 'Elim gitti', resist: 'Direndim', did: 'Girdim' };
+    case 'sugar':
+      return { urge: 'Canım çekti', resist: 'Direndim', did: 'Yedim' };
+    case 'alcohol':
+    case 'caffeine':
+    case 'nicotine':
+      return { urge: 'Canım çekti', resist: 'Direndim', did: 'İçtim' };
+    case 'gambling':
+    case 'gaming':
+      return { urge: category === 'gaming' ? 'Elim gitti' : 'Canım çekti', resist: 'Direndim', did: 'Oynadım' };
+    default:
+      return { urge: 'Canım çekti', resist: 'Direndim', did: 'Yaptım' };
+  }
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  nicotine: 'Sigara / Nikotin',
+  social_media: 'Telefon / Sosyal medya',
+  sugar: 'Şeker / abur cubur',
+  alcohol: 'Alkol',
+  gambling: 'Kumar / bahis',
+  caffeine: 'Kafein',
+  gaming: 'Oyun',
+  custom: 'Kendi davranışım',
+};
+
+function shortTurkishDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'Eski kayıt';
+  const months = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+  return `${d.getDate()} ${months[d.getMonth()]}`;
+}
+
+function migrateLegacyBehaviorNames() {
+  const rows = db.getAllSync<{ id: string; name: string; category: string; createdAt: string }>(
+    'SELECT id, name, category, createdAt FROM behaviors ORDER BY createdAt ASC;'
+  );
+  const seen = new Set<string>();
+
+  for (const row of rows) {
+    const label = CATEGORY_LABELS[row.category] ?? 'Davranışım';
+    const current = (row.name ?? '').trim();
+    const normalized = current.toLocaleLowerCase('tr-TR');
+    const generatedBefore = !current || current === label || current === 'Davranışım';
+    const duplicate = !!current && seen.has(normalized);
+
+    if (!generatedBefore && !duplicate) {
+      seen.add(normalized);
+      continue;
+    }
+
+    const base = `${label} · ${shortTurkishDate(row.createdAt)}`;
+    let candidate = base;
+    let suffix = 2;
+    while (seen.has(candidate.toLocaleLowerCase('tr-TR'))) candidate = `${base} · ${suffix++}`;
+    db.runSync('UPDATE behaviors SET name = ?, needs_name_review = 1 WHERE id = ?;', [candidate, row.id]);
+    seen.add(candidate.toLocaleLowerCase('tr-TR'));
+  }
+}
+
+const MIGRATIONS: Record<number, () => void> = {
+  1: migrateToV1,
+  2: migrateToV2,
+  3: migrateToV3,
+  4: migrateToV4,
+  5: migrateToV5,
+  6: migrateToV6,
+  7: migrateToV7,
+};
+
+function currentSchemaVersion(): number {
+  return db.getFirstSync<{ user_version: number }>('PRAGMA user_version;')?.user_version ?? 0;
+}
+
+function runMigrations() {
+  const from = currentSchemaVersion();
+  if (from > SCHEMA_VERSION) throw new Error(`Veritabanı sürümü desteklenmiyor: ${from}`);
+  if (from === SCHEMA_VERSION) return;
+
+  try {
+    SQLite.deleteDatabaseSync(MIGRATION_BACKUP_NAME);
+  } catch {}
+  const backup = SQLite.openDatabaseSync(MIGRATION_BACKUP_NAME);
+  SQLite.backupDatabaseSync({ sourceDatabase: db, destDatabase: backup });
+
+  try {
+    db.execSync('BEGIN IMMEDIATE;');
+    for (let version = from + 1; version <= SCHEMA_VERSION; version++) {
+      const migrate = MIGRATIONS[version];
+      if (!migrate) throw new Error(`Eksik migrasyon adımı: v${version}`);
+      migrate();
+      db.execSync(`PRAGMA user_version = ${version};`);
+    }
+    db.execSync('COMMIT;');
+    backup.closeSync();
+    SQLite.deleteDatabaseSync(MIGRATION_BACKUP_NAME);
+  } catch (error) {
+    try {
+      db.execSync('ROLLBACK;');
+    } catch {}
+    SQLite.backupDatabaseSync({ sourceDatabase: backup, destDatabase: db });
+    backup.closeSync();
+    throw new Error('Veritabanı migrasyonu başarısız oldu; yedek geri yüklendi.', { cause: error });
+  }
+}
+
+export function initDb() {
+  db.execSync('PRAGMA journal_mode = WAL;');
+  runMigrations();
 }
 
 export function wipeAllTables() {

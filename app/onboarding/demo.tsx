@@ -10,6 +10,8 @@ import { useOnboardingStore } from '@/store/useOnboardingStore';
 import { useAppStore } from '@/store/useAppStore';
 import { WHY_CHIPS, PLAN_CHIPS } from '@/content/chips';
 import { usageKey } from '@/utils/chips';
+import { behaviorVerbsFor } from '@/content/behaviors';
+import { toast } from '@/store/useToastStore';
 
 export default function OnboardingDemo() {
   const router = useRouter();
@@ -20,11 +22,13 @@ export default function OnboardingDemo() {
   const addReason = useAppStore((s) => s.addReason);
   const logEvent = useAppStore((s) => s.logEvent);
   const closeEvent = useAppStore((s) => s.closeEvent);
+  const removeEvent = useAppStore((s) => s.removeEvent);
   const bumpChipUsage = useAppStore((s) => s.bumpChipUsage);
   const completeOnboarding = useAppStore((s) => s.completeOnboarding);
   const [tapped, setTapped] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const pop = useRef(new Animated.Value(1)).current;
+  const verbs = behaviorVerbsFor(draft.category);
 
   const handleTap = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -42,6 +46,9 @@ export default function OnboardingDemo() {
     const behavior = addBehavior({
       name: draft.nickname.trim() || 'Davranışım',
       category: draft.category,
+      verbDid: draft.category === 'custom' ? draft.verbDid.trim() || 'Yaptım' : undefined,
+      color: draft.behaviorColor,
+      icon: draft.behaviorIcon,
       goalMode: draft.goalMode,
       unit: 'event',
       planAlternative: planText,
@@ -54,6 +61,7 @@ export default function OnboardingDemo() {
     if (tapped) {
       const event = logEvent({ behaviorId: behavior.id, source: 'onboarding' });
       closeEvent(event.id, 'resisted');
+      toast.show({ message: 'Deneme kaydı eklendi', tone: 'success', actionLabel: 'Geri al', durationMs: tokens.motion.undoWindow, onAction: () => removeEvent(event.id) });
     }
     completeOnboarding();
     resetDraft();
@@ -88,7 +96,7 @@ export default function OnboardingDemo() {
         {/* H8 — one primary at a time. Before the tap: try = primary, skip = ghost. After: start = primary. */}
         {!tapped ? (
           <View style={{ width: '100%', gap: tokens.spacing['12'] }}>
-            <Button label="Dürtü geldi" onPress={handleTap} />
+            <Button label={verbs.urge} onPress={handleTap} />
             <Button label="Atla ve başla" variant="ghost" onPress={finish} loading={finishing} />
           </View>
         ) : (

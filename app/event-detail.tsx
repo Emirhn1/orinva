@@ -23,7 +23,7 @@ export default function EventDetailSheet() {
   const behaviors = useAppStore((s) => s.behaviors);
   const updateEvent = useAppStore((s) => s.updateEvent);
   const removeEvent = useAppStore((s) => s.removeEvent);
-  const logEvent = useAppStore((s) => s.logEvent);
+  const restoreEvent = useAppStore((s) => s.restoreEvent);
 
   const event = events.find((e) => e.id === id);
   const behavior = behaviors.find((b) => b.id === event?.behaviorId);
@@ -68,22 +68,7 @@ export default function EventDetailSheet() {
       icon: 'refresh-cw',
       actionLabel: 'Geri al',
       durationMs: tokens.motion.undoWindow,
-      onAction: () => {
-        // Re-create with the same content (new id); clean-time is recomputed by the store.
-        logEvent({
-          behaviorId: snapshot.behaviorId,
-          intensity: snapshot.intensity,
-          mood: snapshot.mood,
-          triggers: snapshot.triggers,
-          location: snapshot.location,
-          company: snapshot.company,
-          note: snapshot.note,
-          outcome: snapshot.outcome,
-          helpedByPlan: snapshot.helpedByPlan,
-          delaySeconds: snapshot.delaySeconds,
-          source: snapshot.source,
-        });
-      },
+      onAction: () => restoreEvent(snapshot),
     });
     close();
   };
@@ -95,7 +80,7 @@ export default function EventDetailSheet() {
           <Text variant="label" color="secondary" style={{ marginBottom: tokens.spacing['8'] }}>
             Sonuç
           </Text>
-          <OutcomePicker value={outcome} onChange={setOutcome} includeUnsure />
+          <OutcomePicker value={outcome} onChange={setOutcome} includeUnsure resistedLabel={behavior.verbResist} actedLabel={behavior.verbDid} />
         </View>
         <View>
           <Text variant="label" color="secondary" style={{ marginBottom: tokens.spacing['8'] }}>

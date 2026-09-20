@@ -11,10 +11,13 @@ import { rescheduleNotifications } from '@/notifications/scheduler';
 import { KIND_LABEL, NotificationKind, PRESET_TIMES, MAX_TIMES, toHHMM } from '@/notifications/prefs';
 import { QUOTE_CATEGORY_LABEL, QUOTE_CATEGORY_HINT, QuoteCategory } from '@/content/quotes';
 import { formatClock } from '@/utils/date';
+import { NOTIFICATIONS_ENABLED } from '@/notifications/config';
 
 const KIND_ORDER: NotificationKind[] = ['quote', 'milestone', 'health', 'riskHour', 'postSlip', 'gentleReturn', 'weekly', 'earnings', 'insight'];
 const CATEGORY_ORDER: QuoteCategory[] = ['own', 'aphorism', 'motivation', 'calm', 'science', 'health', 'lyrics'];
 const HOURS = Array.from({ length: 24 }, (_, h) => toHHMM(h));
+const INTERVALS = [10, 15, 30, 60, 120, 180] as const;
+const intervalLabel = (minutes: number) => minutes < 60 ? `${minutes} dk` : `${minutes / 60} sa`;
 
 export default function NotificationSettingsScreen() {
   const router = useRouter();
@@ -26,6 +29,7 @@ export default function NotificationSettingsScreen() {
   const setNotificationPermission = useAppStore((s) => s.setNotificationPermission);
   const [pickingTime, setPickingTime] = useState(false);
   const [pickingQuiet, setPickingQuiet] = useState<'from' | 'to' | null>(null);
+  const [pickingActive, setPickingActive] = useState<'from' | 'to' | null>(null);
   const [testing, setTesting] = useState(false);
 
   const upcoming = useMemo(() => plan.filter((p) => p.at.getTime() > Date.now()).slice(0, 6), [plan]);
@@ -33,6 +37,11 @@ export default function NotificationSettingsScreen() {
   const toggleMaster = async (v: boolean) => {
     if (!v) {
       updateNotificationPrefs({ enabled: false });
+      return;
+    }
+    if (!NOTIFICATIONS_ENABLED) {
+      updateNotificationPrefs({ enabled: true });
+      toast.show({ message: 'Bildirim ayarların kaydedildi', tone: 'success' });
       return;
     }
     const p = await requestPermission();
@@ -75,6 +84,13 @@ export default function NotificationSettingsScreen() {
         <Text variant="title">Bildirimler</Text>
       </View>
 
+      {!NOTIFICATIONS_ENABLED ? (
+        <Surface radius="lg" bordered style={{ padding: tokens.spacing['16'], marginBottom: tokens.spacing['16'], borderColor: colors.amber, backgroundColor: colors.amberSoft }}>
+          <Text variant="label">Bildirimler bu test sürümünde çalışmıyor, ayarların kaydedildi.</Text>
+          <Text variant="caption" color="secondary" style={{ marginTop: tokens.spacing['4'] }}>Dev client sürümünde planlama tek bayrakla açılacak.</Text>
+        </Surface>
+      ) : null}
+
       <Card padded>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['12'] }}>
           <Icon name="bell" size={20} color={colors.textSecondary} />
@@ -98,12 +114,20 @@ export default function NotificationSettingsScreen() {
         ) : null}
       </Card>
 
+      <Text variant="label" color="secondary" style={{ marginTop: tokens.spacing['24'], marginBottom: tokens.spacing['8'] }}>Zamanlama biçimi</Text>
+      <Card padded style={{ opacity: disabled ? tokens.opacity.disabled : 1 }} pointerEvents={disabled ? 'none' : 'auto'}>
+        <View style={{ flexDirection: 'row', gap: tokens.spacing['8'], flexWrap: 'wrap' }}>
+          <Chip label="Belirli saatler" selected={prefs.scheduleMode === 'times'} onPress={() => updateNotificationPrefs({ scheduleMode: 'times' })} />
+          <Chip label="Aralık modu" selected={prefs.scheduleMode === 'interval'} onPress={() => updateNotificationPrefs({ scheduleMode: 'interval' })} />
+        </View>
+      </Card>
+
       {/* Zamanlama */}
       <Text variant="label" color="secondary" style={{ marginTop: tokens.spacing['24'], marginBottom: tokens.spacing['8'] }}>
-        Günün sözü saatleri
+        {prefs.scheduleMode === 'times' ? 'Günün sözü saatleri' : 'Bildirim aralığı'}
       </Text>
       <Card padded style={{ opacity: disabled ? tokens.opacity.disabled : 1 }} pointerEvents={disabled ? 'none' : 'auto'}>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing['8'] }}>
+        {prefs.scheduleMode === 'times' ? <><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing['8'] }}>
           {prefs.times.map((t) => (
             <Chip key={t} label={`${t}  ×`} selected onPress={() => removeTime(t)} accessibilityHint="Kaldırmak için dokun" />
           ))}
@@ -132,6 +156,19 @@ export default function NotificationSettingsScreen() {
         <Text variant="caption" color="tertiary" style={{ marginTop: tokens.spacing['12'] }}>
           Günde en fazla {MAX_TIMES} saat. Aynı söz 30 gün tekrar etmez.
         </Text>
+        </> : <>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing['8'] }}>
+            {INTERVALS.map((minutes) => <Chip key={minutes} label={intervalLabel(minutes)} selected={prefs.intervalMinutes === minutes} onPress={() => updateNotificationPrefs({ intervalMinutes: minutes })} />)}
+          </View>
+          {prefs.intervalMinutes < 30 ? <Surface radius="md" style={{ marginTop: tokens.spacing['12'], padding: tokens.spacing['12'], backgroundColor: colors.amberSoft }}><Text variant="caption" color="secondary">Çok sık bildirim pil tüketir ve etkisi azalır. Android kısıtlamaları nedeniyle bazı bildirimler gelmeyebilir.</Text></Surface> : null}
+          <Text variant="caption" color="tertiary" style={{ marginTop: tokens.spacing['16'], marginBottom: tokens.spacing['8'] }}>Aktif saat penceresi</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['8'] }}>
+            <Chip label={prefs.activeFrom} selected={pickingActive === 'from'} onPress={() => setPickingActive(pickingActive === 'from' ? null : 'from')} />
+            <Text variant="caption" color="tertiary">→</Text>
+            <Chip label={prefs.activeTo} selected={pickingActive === 'to'} onPress={() => setPickingActive(pickingActive === 'to' ? null : 'to')} />
+          </View>
+          {pickingActive ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing['4'], marginTop: tokens.spacing['12'] }}>{HOURS.map((time) => <Chip key={time} label={time} compact selected={(pickingActive === 'from' ? prefs.activeFrom : prefs.activeTo) === time} onPress={() => { updateNotificationPrefs(pickingActive === 'from' ? { activeFrom: time } : { activeTo: time }); setPickingActive(null); }} />)}</View> : null}
+        </>}
       </Card>
 
       {/* Rahatsız etmeyin */}
@@ -246,10 +283,10 @@ export default function NotificationSettingsScreen() {
         )}
         <View style={{ flexDirection: 'row', gap: tokens.spacing['8'], marginTop: tokens.spacing['16'] }}>
           <View style={{ flex: 1 }}>
-            <Button label="Planı yenile" variant="ghost" onPress={() => rescheduleNotifications().then(() => toast.show({ message: 'Plan yenilendi', tone: 'success' }))} />
+            <Button label="Planı yenile" variant="ghost" disabled={!NOTIFICATIONS_ENABLED} onPress={() => rescheduleNotifications().then(() => toast.show({ message: 'Plan yenilendi', tone: 'success' }))} />
           </View>
           <View style={{ flex: 1 }}>
-            <Button label="Test bildirimi" variant="secondary" loading={testing} onPress={runTest} />
+            <Button label="Test bildirimi" variant="secondary" disabled={!NOTIFICATIONS_ENABLED} loading={testing} onPress={runTest} />
           </View>
         </View>
       </Card>

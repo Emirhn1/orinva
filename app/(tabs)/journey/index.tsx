@@ -9,7 +9,8 @@ import { useAppStore } from '@/store/useAppStore';
 import { cleanDuration } from '@/utils/journey';
 import { formatDuration } from '@/utils/date';
 import { useNow } from '@/utils/useNow';
-import { GOAL_LABEL } from '@/content/behaviors';
+import { GOAL_LABEL, behaviorTypeLabel } from '@/content/behaviors';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function JourneyScreen() {
   const router = useRouter();
@@ -44,12 +45,20 @@ export default function JourneyScreen() {
       ) : (
         <>
           {behaviors.length > 1 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -tokens.spacing['20'], marginBottom: tokens.spacing['16'] }} contentContainerStyle={{ paddingHorizontal: tokens.spacing['20'], gap: tokens.spacing['8'] }}>
-              <Chip label="Tümü" selected={filterId === null} onPress={() => setFilterId(null)} compact tone="slateBlue" />
-              {behaviors.map((b) => (
-                <Chip key={b.id} label={b.name} selected={filterId === b.id} onPress={() => setFilterId(b.id)} compact tone="slateBlue" />
-              ))}
-            </ScrollView>
+            <View style={{ marginHorizontal: -tokens.spacing['20'], marginBottom: tokens.spacing['16'] }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: tokens.spacing['20'], paddingRight: tokens.spacing['48'], gap: tokens.spacing['8'] }}>
+                <Chip label="Tümü" selected={filterId === null} onPress={() => setFilterId(null)} compact tone="slateBlue" />
+                {behaviors.map((b) => (
+                  <Chip key={b.id} label={b.name} selected={filterId === b.id} onPress={() => setFilterId(b.id)} compact tone="slateBlue" />
+                ))}
+              </ScrollView>
+              <LinearGradient pointerEvents="none" colors={['transparent', colors.background]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 36 }} />
+              {behaviors.length > 3 ? (
+                <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 4, marginTop: tokens.spacing['8'] }}>
+                  {behaviors.map((b) => <View key={b.id} style={{ width: filterId === b.id ? 12 : 5, height: 5, borderRadius: 3, backgroundColor: filterId === b.id ? colors.indigo : colors.borderStrong }} />)}
+                </View>
+              ) : null}
+            </View>
           ) : null}
 
           <JourneyAnalytics events={events} behaviors={scoped} now={now} onLogPress={() => router.push({ pathname: '/quick-log', params: { behaviorId: scoped[0]?.id ?? '' } })} />
@@ -61,11 +70,15 @@ export default function JourneyScreen() {
                 const d = cleanDuration(b, now);
                 return (
                   <Pressable key={b.id} onPress={() => router.push({ pathname: '/(tabs)/journey/[id]', params: { id: b.id } })} accessibilityRole="button" accessibilityLabel={b.name}>
-                    <Card padded>
+                    <Card padded style={{ borderLeftWidth: 4, borderLeftColor: colors[b.color] }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing['12'] }}>
+                        <View style={{ width: 40, height: 40, borderRadius: tokens.radius.sm, backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center' }}><Icon name={b.icon as any} size={20} color={colors[b.color]} /></View>
                         <View style={{ flex: 1 }}>
                           <Text variant="label" numberOfLines={1}>
                             {b.name}
+                          </Text>
+                          <Text variant="caption" color="tertiary" style={{ marginTop: tokens.spacing['4'] }}>
+                            {behaviorTypeLabel(b.category)}
                           </Text>
                           <Text variant="caption" color="secondary" style={{ marginTop: tokens.spacing['4'] }} tabular>
                             {formatDuration(d.totalMinutes, 'long')}

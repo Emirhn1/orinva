@@ -11,6 +11,7 @@ import { EventOutcome, EventSource } from '@/data/types';
 import { TRIGGER_CHIPS, LOCATION_CHIPS, COMPANY_CHIPS } from '@/content/chips';
 import { usageKey } from '@/utils/chips';
 import { commitActed } from '@/utils/actedFlow';
+import { behaviorTypeLabel } from '@/content/behaviors';
 
 type Stage = 'form' | 'saved';
 
@@ -144,7 +145,7 @@ export default function QuickLogSheet() {
   }
 
   return (
-    <Sheet onClose={close} title="Dürtü geldi" subtitle="Hiçbir şey seçmeden kaydetmek de geçerli.">
+    <Sheet onClose={close} title={behavior.verbUrge} subtitle="Hiçbir şey seçmeden kaydetmek de geçerli.">
       {behaviors.length > 1 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: tokens.spacing['8'], paddingBottom: tokens.spacing['16'] }}>
           {behaviors.map((b) => (
@@ -152,9 +153,10 @@ export default function QuickLogSheet() {
           ))}
         </ScrollView>
       ) : (
-        <Text variant="label" color="secondary" style={{ marginBottom: tokens.spacing['16'] }}>
-          {behavior.name}
-        </Text>
+        <View style={{ marginBottom: tokens.spacing['16'] }}>
+          <Text variant="label">{behavior.name}</Text>
+          <Text variant="caption" color="tertiary">{behaviorTypeLabel(behavior.category)}</Text>
+        </View>
       )}
 
       <View style={{ gap: tokens.spacing['20'] }}>
@@ -176,7 +178,7 @@ export default function QuickLogSheet() {
               şimdi ya da sonra
             </Text>
           </Text>
-          <OutcomePicker value={outcome} onChange={setOutcome} />
+          <OutcomePicker value={outcome} onChange={setOutcome} resistedLabel={behavior.verbResist} actedLabel={behavior.verbDid} />
         </View>
 
         {!more ? (

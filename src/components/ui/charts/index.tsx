@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Pressable } from 'react-native';
-import Svg, { Rect, Line, Circle } from 'react-native-svg';
+import Svg, { Rect, Line, Circle, Text as SvgText } from 'react-native-svg';
 import { Text } from '../Typography';
 import { useTheme } from '@/design/ThemeProvider';
 import { SeriesPoint, HeatCell, HEAT_BLOCKS, HEAT_DAYS, DistributionRow, CalendarState } from '@/utils/journey';
@@ -24,27 +24,37 @@ export function TrendBars({ points, height = 120 }: { points: SeriesPoint[]; hei
   const [width, setWidth] = React.useState(0);
   const max = Math.max(1, ...points.map((p) => p.total));
   const gap = points.length > 14 ? 2 : 6;
-  const barW = width > 0 ? Math.max(2, (width - gap * (points.length - 1)) / points.length) : 0;
-  const chartH = height - 20;
+  const axisW = 28;
+  const plotW = Math.max(0, width - axisW - 4);
+  const barW = width > 0 ? Math.max(2, (plotW - gap * (points.length - 1)) / points.length) : 0;
+  const chartTop = 16;
+  const chartBottom = height - 20;
+  const plotH = chartBottom - chartTop;
 
   return (
     <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       {width > 0 ? (
         <Svg width={width} height={height}>
-          <Line x1={0} y1={chartH} x2={width} y2={chartH} stroke={colors.surfaceSecondary} strokeWidth={1} />
+          <Line x1={axisW} y1={chartTop} x2={axisW} y2={chartBottom} stroke={colors.borderStrong} strokeWidth={1} />
+          <Line x1={axisW} y1={chartBottom} x2={width} y2={chartBottom} stroke={colors.borderStrong} strokeWidth={1} />
+          <Line x1={axisW} y1={chartTop + plotH / 2} x2={width} y2={chartTop + plotH / 2} stroke={colors.surfaceSecondary} strokeWidth={1} />
+          <SvgText x={axisW - 4} y={chartTop + 4} fill={colors.textTertiary} fontSize={9} textAnchor="end">{max}</SvgText>
+          <SvgText x={axisW - 4} y={chartTop + plotH / 2 + 3} fill={colors.textTertiary} fontSize={9} textAnchor="end">{Math.ceil(max / 2)}</SvgText>
+          <SvgText x={axisW - 4} y={chartBottom + 3} fill={colors.textTertiary} fontSize={9} textAnchor="end">0</SvgText>
           {points.map((p, i) => {
-            const x = i * (barW + gap);
-            const totalH = (p.total / max) * (chartH - 4);
-            const resistedH = (p.resisted / max) * (chartH - 4);
+            const x = axisW + i * (barW + gap);
+            const totalH = (p.total / max) * plotH * 0.9;
+            const resistedH = (p.resisted / max) * plotH * 0.9;
             const r = Math.min(tokens.radius.sm, barW / 2);
             return (
               <React.Fragment key={p.key}>
                 {p.total > 0 ? (
-                  <Rect x={x} y={chartH - totalH} width={barW} height={totalH} rx={r} fill={colors.indigo} opacity={0.35} />
+                  <Rect x={x} y={chartBottom - totalH} width={barW} height={totalH} rx={r} fill={colors.indigo} opacity={0.35} />
                 ) : (
-                  <Rect x={x} y={chartH - 2} width={barW} height={2} rx={1} fill={colors.surfaceSecondary} />
+                  <Rect x={x} y={chartBottom - 2} width={barW} height={2} rx={1} fill={colors.surfaceSecondary} />
                 )}
-                {p.resisted > 0 ? <Rect x={x} y={chartH - resistedH} width={barW} height={resistedH} rx={r} fill={colors.outcomeResisted} /> : null}
+                {p.resisted > 0 ? <Rect x={x} y={chartBottom - resistedH} width={barW} height={resistedH} rx={r} fill={colors.outcomeResisted} /> : null}
+                {p.total > 0 ? <SvgText x={x + barW / 2} y={Math.max(chartTop + 8, chartBottom - totalH - 3)} fill={colors.textSecondary} fontSize={barW < 10 ? 7 : 9} textAnchor="middle">{p.total}</SvgText> : null}
               </React.Fragment>
             );
           })}
@@ -53,7 +63,7 @@ export function TrendBars({ points, height = 120 }: { points: SeriesPoint[]; hei
         <View style={{ height }} />
       )}
       {points.length <= 10 ? (
-        <View style={{ flexDirection: 'row', marginTop: tokens.spacing['4'] }}>
+        <View style={{ flexDirection: 'row', marginTop: tokens.spacing['4'], marginLeft: axisW }}>
           {points.map((p, i) => (
             <Text key={p.key + i} variant="caption" color="tertiary" style={{ width: barW + gap, textAlign: 'center', fontSize: 10 }} numberOfLines={1}>
               {p.label}
@@ -62,7 +72,7 @@ export function TrendBars({ points, height = 120 }: { points: SeriesPoint[]; hei
         </View>
       ) : (
         // Dense series: three anchors (start · middle · end) instead of one label per bar.
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: tokens.spacing['4'] }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: tokens.spacing['4'], marginLeft: axisW }}>
           {[points[0], points[Math.floor(points.length / 2)], points[points.length - 1]].map((p, i) => (
             <Text key={p.key + i} variant="caption" color="tertiary" style={{ fontSize: 10 }}>
               {shortDate(p.key)}
@@ -72,7 +82,7 @@ export function TrendBars({ points, height = 120 }: { points: SeriesPoint[]; hei
       )}
       <View style={{ flexDirection: 'row', gap: tokens.spacing['16'], marginTop: tokens.spacing['8'] }}>
         <LegendDot color={colors.outcomeResisted} label="Direndim / erteledim" />
-        <LegendDot color={colors.indigo} label="Toplam dürtü" faint />
+        <LegendDot color={colors.indigo} label="Toplam istek" faint />
       </View>
     </View>
   );

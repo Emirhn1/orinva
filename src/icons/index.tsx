@@ -17,7 +17,8 @@ export type IconName =
   | 'message-circle' | 'search' | 'sliders' | 'alert-circle' | 'info'
   | 'arrow-right' | 'arrow-left' | 'pause' | 'play' | 'more-horizontal'
   | 'star' | 'dollar-sign' | 'activity' | 'feather' | 'phone-off'
-  | 'refresh-cw' | 'send' | 'volume-2' | 'flag' | 'grid';
+  | 'refresh-cw' | 'send' | 'volume-2' | 'flag' | 'grid'
+  | 'coffee' | 'monitor';
 
 export function Icon({
   name,

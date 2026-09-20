@@ -2,7 +2,6 @@ import { useAppStore, CloseEventExtra } from '@/store/useAppStore';
 import { toast } from '@/store/useToastStore';
 import { Behavior, EventSource } from '@/data/types';
 import { shouldRunRecovery, actedOn } from '@/utils/journey';
-import { actedNounFor } from '@/content/behaviors';
 import { todayKey } from '@/utils/date';
 
 interface Opts {
@@ -40,7 +39,7 @@ export function commitActed(router: { replace: (href: any) => void }, behavior: 
   const count = actedOn(useAppStore.getState().events, behavior.id, todayKey());
   const undoId = id;
   toast.show({
-    message: `Bugün ${count} ${actedNounFor(behavior.category)}`,
+    message: `Bugün ${count} kayıt · ${behavior.verbDid}`,
     icon: 'check',
     actionLabel: 'Geri al',
     durationMs: 5000,

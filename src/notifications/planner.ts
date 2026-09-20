@@ -64,6 +64,16 @@ function slotKey(kind: NotificationKind, date: Date, extra = ''): string {
   return `${kind}@${d.toISOString()}${extra ? `#${extra}` : ''}`;
 }
 
+function quoteTimesForDay(base: Date, dayOffset: number, prefs: NotificationPrefs): Date[] {
+  if (prefs.scheduleMode === 'times') return prefs.times.map((time) => at(base, dayOffset, time));
+  const start = at(base, dayOffset, prefs.activeFrom);
+  const end = at(base, dayOffset, prefs.activeTo);
+  if (end.getTime() <= start.getTime()) end.setDate(end.getDate() + 1);
+  const slots: Date[] = [];
+  for (let time = start.getTime(); time <= end.getTime(); time += prefs.intervalMinutes * 60_000) slots.push(new Date(time));
+  return slots;
+}
+
 /**
  * Builds every candidate for the next 7 days, then applies the budget:
  * max N per local day, ≥ gap minutes apart, nothing in quiet hours (quotes
@@ -83,8 +93,7 @@ export function planNotifications(input: PlanInput): PlannedNotification[] {
   // --- Günün sözü ----------------------------------------------------------
   if (prefs.kinds.quote) {
     for (let day = 0; day < HORIZON_DAYS; day++) {
-      for (const t of prefs.times) {
-        const when = at(now, day, t);
+      for (const when of quoteTimesForDay(now, day, prefs)) {
         if (!inHorizon(when)) continue;
         candidates.push({ key: slotKey('quote', when), kind: 'quote', at: when, title: TITLE, body: '', route: 'quote' });
       }
@@ -163,7 +172,7 @@ export function planNotifications(input: PlanInput): PlannedNotification[] {
       if (when.getDay() !== 0 || !inHorizon(when)) continue;
       const week = eventsInWindow(events, 7, now);
       const rate = computeResistRate(week);
-      const body = week.length ? `Bu hafta ${week.length} dürtü, ${rate.resisted}'inde direndin.` : 'Bu hafta sessiz geçti. Alan hâlâ hazır.';
+      const body = week.length ? `Bu hafta ${week.length} istek, ${rate.resisted}'inde direndin.` : 'Bu hafta sessiz geçti. Alan hâlâ hazır.';
       candidates.push({ key: slotKey('weekly', when), kind: 'weekly', at: when, title: TITLE, body, route: 'journey' });
     }
   }
@@ -189,7 +198,7 @@ export function planNotifications(input: PlanInput): PlannedNotification[] {
         let minutes = 0;
         let money = 0;
         for (const b of withBaseline) {
-          const e = computeEarnings(b, when);
+          const e = computeEarnings(b, when, events);
           minutes += Math.min(e.minutesRecovered ?? 0, 7 * (b.baselinePerDay ?? 0) * (b.minutesPerUnit ?? 0));
           money += Math.min(e.moneySaved ?? 0, 7 * (b.baselinePerDay ?? 0) * (b.costPerUnit ?? 0));
         }
@@ -246,9 +255,13 @@ function applyBudget(candidates: PlannedNotification[], input: PlanInput): Plann
   for (const list of byDay.values()) {
     list.sort((a, b) => PRIORITY[a.kind] - PRIORITY[b.kind] || a.at.getTime() - b.at.getTime());
     const chosen: PlannedNotification[] = [];
+    const dailyLimit = prefs.scheduleMode === 'interval' ? Math.max(prefs.maxPerDay, Math.ceil(1440 / prefs.intervalMinutes)) : prefs.maxPerDay;
     for (const c of list) {
-      if (chosen.length >= prefs.maxPerDay) break;
-      const tooClose = chosen.some((x) => Math.abs(x.at.getTime() - c.at.getTime()) < gapMs);
+      if (chosen.length >= dailyLimit) break;
+      const tooClose = chosen.some((x) => {
+        const requiredGap = c.kind === 'quote' && x.kind === 'quote' && prefs.scheduleMode === 'interval' ? prefs.intervalMinutes * 60_000 : gapMs;
+        return Math.abs(x.at.getTime() - c.at.getTime()) < requiredGap;
+      });
       if (tooClose) continue;
       chosen.push(c);
     }

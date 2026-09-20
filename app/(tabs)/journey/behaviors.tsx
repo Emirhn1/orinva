@@ -8,7 +8,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { cleanDuration } from '@/utils/journey';
 import { formatDuration } from '@/utils/date';
 import { useNow } from '@/utils/useNow';
-import { GOAL_LABEL } from '@/content/behaviors';
+import { GOAL_LABEL, behaviorTypeLabel } from '@/content/behaviors';
 import { Behavior } from '@/data/types';
 
 export default function BehaviorsScreen() {
@@ -26,11 +26,14 @@ export default function BehaviorsScreen() {
     const d = cleanDuration(b, now);
     return (
       <Pressable onPress={() => router.push({ pathname: '/(tabs)/journey/[id]', params: { id } })} accessibilityRole="button" accessibilityLabel={name}>
-        <Card padded>
+          <Card padded style={{ borderLeftWidth: 4, borderLeftColor: colors[b.color] }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing['12'] }}>
             <View style={{ flex: 1 }}>
               <Text variant="label" numberOfLines={1}>
                 {name}
+              </Text>
+              <Text variant="caption" color="tertiary" numberOfLines={1}>
+                {behaviorTypeLabel(b.category)}
               </Text>
               <Text variant="caption" color="secondary" tabular>
                 {isArchived ? 'Arşivde' : formatDuration(d.totalMinutes, 'long')}

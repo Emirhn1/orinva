@@ -11,7 +11,7 @@ import { cleanDuration, milestoneProgress, reachedMilestones, computeActedStats,
 import { formatRelativeTime, formatDuration, formatRemaining } from '@/utils/date';
 import { useNow } from '@/utils/useNow';
 import { TRIGGER_CHIPS } from '@/content/chips';
-import { GOAL_LABEL, actedVerbFor, actedNounFor } from '@/content/behaviors';
+import { GOAL_LABEL, behaviorTypeLabel } from '@/content/behaviors';
 import { commitActed } from '@/utils/actedFlow';
 
 export default function BehaviorDetailScreen() {
@@ -46,14 +46,18 @@ export default function BehaviorDetailScreen() {
   const week = actedSeries(events, behavior.id, 7, now);
   const weekMax = Math.max(1, ...week.map((w) => w.count));
   const overTarget = !!behavior.dailyTarget && acted.today > behavior.dailyTarget;
+  const ring = ringValue(d.totalMinutes);
+  const behaviorColor = colors[behavior.color];
+  const averageLineBottom = 16 + Math.min(36, ((acted.avgPerDay ?? 0) / weekMax) * 36);
 
   return (
     <ScreenContainer>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['12'], marginTop: tokens.spacing['8'], marginBottom: tokens.spacing['16'] }}>
         <IconButton name="chevron-left" accessibilityLabel="Geri" onPress={() => router.back()} />
-        <Text variant="title" numberOfLines={1} style={{ flex: 1 }}>
-          {behavior.name}
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text variant="title" numberOfLines={2}>{behavior.name}</Text>
+          <Text variant="caption" color="tertiary">{behaviorTypeLabel(behavior.category)}</Text>
+        </View>
         <IconButton name="edit-3" accessibilityLabel="Düzenle" onPress={() => router.push({ pathname: '/behavior-builder', params: { id: behavior.id } })} />
       </View>
 
@@ -68,12 +72,12 @@ export default function BehaviorDetailScreen() {
 
       <Card hero>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['20'] }}>
-          <ProgressRing progress={ms.progress} size={104} color={colors.cyan}>
+          <ProgressRing progress={ms.progress} size={104} color={behaviorColor}>
             <Text variant="statLarge" tabular style={{ fontSize: 32, lineHeight: 34 }}>
-              {d.days}
+              {ring.value}
             </Text>
             <Text variant="caption" color="tertiary">
-              gün
+              {ring.unit}
             </Text>
           </ProgressRing>
           <View style={{ flex: 1 }}>
@@ -85,7 +89,7 @@ export default function BehaviorDetailScreen() {
             </Text>
             {ms.next ? (
               <Text variant="caption" color="secondary" style={{ marginTop: tokens.spacing['8'] }} tabular>
-                {ms.next.label} için {formatRemaining(ms.remainingMinutes)}
+                {ms.next.label} doldurmaya {formatRemaining(ms.remainingMinutes)}
               </Text>
             ) : null}
           </View>
@@ -99,10 +103,10 @@ export default function BehaviorDetailScreen() {
         ) : null}
         <View style={{ flexDirection: 'row', gap: tokens.spacing['12'], marginTop: tokens.spacing['20'] }}>
           <View style={{ flex: 1 }}>
-            <Button label="Dürtü geldi" variant="secondary" onPress={() => router.push({ pathname: '/quick-log', params: { behaviorId: behavior.id } })} />
+            <Button label={behavior.verbUrge} variant="secondary" onPress={() => router.push({ pathname: '/quick-log', params: { behaviorId: behavior.id } })} />
           </View>
           <View style={{ flex: 1 }}>
-            <Button label="Direndim" variant="ghost" onPress={() => router.push({ pathname: '/quick-log', params: { behaviorId: behavior.id, outcome: 'resisted' } })} />
+            <Button label={behavior.verbResist} variant="ghost" onPress={() => router.push({ pathname: '/quick-log', params: { behaviorId: behavior.id, outcome: 'resisted' } })} />
           </View>
         </View>
       </Card>
@@ -118,22 +122,23 @@ export default function BehaviorDetailScreen() {
                 {behavior.dailyTarget ? <Text variant="body" color="tertiary">{` / ${behavior.dailyTarget}`}</Text> : null}
               </Text>
               <Text variant="caption" color="tertiary" style={{ marginTop: tokens.spacing['4'] }}>
-                {actedNounFor(behavior.category)} · bu hafta {acted.week}
+                {behavior.verbDid} kayıtları · bu hafta {acted.week}
                 {acted.avgPerDay !== null ? ` · günlük ort. ${acted.avgPerDay.toFixed(1)}` : ''}
               </Text>
             </View>
             <Pressable
               onPress={() => commitActed(router, behavior)}
               accessibilityRole="button"
-              accessibilityLabel={`Bir ${actedVerbFor(behavior.category).toLowerCase()} olarak kaydet`}
-              style={{ minWidth: 44, minHeight: 44, borderRadius: tokens.radius.pill, backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tokens.spacing['16'] }}
+              accessibilityLabel={`${behavior.verbDid} olarak kaydet`}
+              style={{ minWidth: 48, minHeight: 48, borderRadius: tokens.radius.pill, backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tokens.spacing['16'] }}
             >
               <Text variant="label" color="indigo">
-                + {actedVerbFor(behavior.category)}
+                + {behavior.verbDid}
               </Text>
             </Pressable>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: tokens.spacing['8'], marginTop: tokens.spacing['20'], height: 48 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: tokens.spacing['8'], marginTop: tokens.spacing['20'], height: 52, position: 'relative' }}>
+            {acted.avgPerDay !== null ? <View accessibilityLabel={`Günlük ortalama ${acted.avgPerDay.toFixed(1)}`} style={{ position: 'absolute', left: 0, right: 0, bottom: averageLineBottom, height: 1, backgroundColor: colors.textSecondary, zIndex: 2 }} /> : null}
             {week.map((w) => (
               <View key={w.key} style={{ flex: 1, alignItems: 'center', gap: tokens.spacing['4'] }}>
                 <View
@@ -189,7 +194,7 @@ export default function BehaviorDetailScreen() {
         <SectionHeader title="Geçmiş" />
         {events.length === 0 ? (
           <Card padded>
-            <EmptyState icon="clock" title="Henüz kayıt yok" description="İlk kaydın buraya gelecek." actionLabel="Dürtü kaydet" onAction={() => router.push({ pathname: '/quick-log', params: { behaviorId: behavior.id } })} />
+            <EmptyState icon="clock" title="Henüz kayıt yok" description="İlk kaydın buraya gelecek." actionLabel="İstek kaydet" onAction={() => router.push({ pathname: '/quick-log', params: { behaviorId: behavior.id } })} />
           </Card>
         ) : (
           <View style={{ gap: tokens.spacing['8'] }}>
@@ -208,7 +213,7 @@ export default function BehaviorDetailScreen() {
                         </Text>
                       ) : null}
                     </View>
-                    <OutcomeBadge outcome={e.outcome} />
+                    <OutcomeBadge outcome={e.outcome} resistedLabel={behavior.verbResist} actedLabel={behavior.verbDid} />
                     <Icon name="chevron-right" size={16} color={colors.textTertiary} />
                   </View>
                 </Card>
@@ -219,4 +224,12 @@ export default function BehaviorDetailScreen() {
       </View>
     </ScreenContainer>
   );
+}
+
+function ringValue(totalMinutes: number): { value: number | string; unit: string } {
+  const minutes = Math.max(0, Math.floor(totalMinutes));
+  if (minutes < 1) return { value: 'şimdi', unit: 'başladı' };
+  if (minutes < 60) return { value: minutes, unit: 'dk' };
+  if (minutes < 1440) return { value: Math.floor(minutes / 60), unit: 'sa' };
+  return { value: Math.floor(minutes / 1440), unit: 'gün' };
 }

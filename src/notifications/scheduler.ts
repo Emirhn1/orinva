@@ -6,6 +6,7 @@ import { configureNotifications, getPermissionState, replaceScheduled, cancelAll
 import { computeInsights, eventsInWindow } from '@/utils/journey';
 import { resolveChipLabel } from '@/components/ui/ChipGroup';
 import { TRIGGER_CHIPS, LOCATION_CHIPS } from '@/content/chips';
+import { NOTIFICATIONS_ENABLED } from './config';
 
 let running = false;
 let queued = false;
@@ -17,6 +18,11 @@ let debounce: ReturnType<typeof setTimeout> | null = null;
  * whole scheduled set is replaced every time, so drift can't accumulate.
  */
 export async function rescheduleNotifications(): Promise<void> {
+  if (!NOTIFICATIONS_ENABLED) {
+    const state = useAppStore.getState();
+    if (state.notificationPlan.length) state.setNotificationPlan([]);
+    return;
+  }
   if (running) {
     queued = true;
     return;

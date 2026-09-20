@@ -55,6 +55,7 @@ export function timeOfDayGreeting(date: Date = new Date()): 'morning' | 'day' | 
  */
 export function formatDuration(totalMinutes: number, style: 'short' | 'long' = 'short'): string {
   const m = Math.max(0, Math.floor(totalMinutes));
+  if (m < 1) return style === 'long' ? 'şimdi başladı' : 'şimdi';
   const days = Math.floor(m / 1440);
   const hours = Math.floor((m % 1440) / 60);
   const minutes = m % 60;
@@ -72,9 +73,9 @@ export function formatCleanTime(cleanSinceAt: string, style: 'short' | 'long' = 
   return formatDuration(ms / 60000, style);
 }
 
-/** Countdown-style: "18 sa 42 dk kaldı" / "12 dk kaldı" */
+/** Countdown-style, always rounded down: "18 sa 42 dk" / "12 dk". */
 export function formatRemaining(totalMinutes: number): string {
-  return `${formatDuration(totalMinutes, 'short')} kaldı`;
+  return formatDuration(totalMinutes, 'short');
 }
 
 export function formatMinutesHuman(totalMinutes: number): string {

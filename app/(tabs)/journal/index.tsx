@@ -14,7 +14,7 @@ type Filter = 'all' | 'events' | 'notes' | 'open';
 
 type Item = { kind: 'event'; at: string; event: UrgeEvent } | { kind: 'note'; at: string; entry: JournalEntry };
 
-/** Günlük — one timeline: urge records and notes together, grouped by day (Plan §6.3). */
+/** Günlük — istek kayıtları ve notlar, güne göre tek akışta. */
 export default function JournalScreen() {
   const router = useRouter();
   const { colors, tokens } = useTheme();
@@ -47,6 +47,7 @@ export default function JournalScreen() {
   }, [events, entries, filter]);
 
   const behaviorName = (id: string) => behaviors.find((b) => b.id === id)?.name ?? '';
+  const behaviorFor = (id: string) => behaviors.find((b) => b.id === id);
 
   return (
     <ScreenContainer>
@@ -57,18 +58,18 @@ export default function JournalScreen() {
 
       <View style={{ flexDirection: 'row', gap: tokens.spacing['8'], marginBottom: tokens.spacing['16'], flexWrap: 'wrap' }}>
         <Chip label="Tümü" compact selected={filter === 'all'} onPress={() => setFilter('all')} />
-        <Chip label="Dürtüler" compact selected={filter === 'events'} onPress={() => setFilter('events')} />
+        <Chip label="İstekler" compact selected={filter === 'events'} onPress={() => setFilter('events')} />
         <Chip label="Notlar" compact selected={filter === 'notes'} onPress={() => setFilter('notes')} />
-        {openCount > 0 ? <Chip label={`Açık · ${openCount}`} compact selected={filter === 'open'} onPress={() => setFilter('open')} tone="amber" /> : null}
+        {openCount > 0 ? <Chip label={`Sonucu ekle · ${openCount}`} compact selected={filter === 'open'} onPress={() => setFilter('open')} tone="amber" /> : null}
       </View>
 
       {groups.length === 0 ? (
         <Card padded>
           <EmptyState
             icon="book-open"
-            title={filter === 'notes' ? 'Henüz not yok' : filter === 'open' ? 'Açık kayıt yok' : 'Henüz kayıt yok'}
+            title={filter === 'notes' ? 'Henüz not yok' : filter === 'open' ? 'Sonuçsuz kayıt yok' : 'Henüz kayıt yok'}
             description={filter === 'notes' ? 'İstediğinde, istediğin kadar.' : 'İlk kaydın buraya gelecek.'}
-            actionLabel={filter === 'notes' ? 'Yeni not' : 'Dürtü kaydet'}
+            actionLabel={filter === 'notes' ? 'Yeni not' : 'İstek kaydet'}
             onAction={() => (filter === 'notes' ? router.push('/(tabs)/journal/new') : router.push('/quick-log'))}
           />
         </Card>
@@ -102,7 +103,11 @@ export default function JournalScreen() {
                               </Text>
                             ) : null}
                           </View>
-                          <OutcomeBadge outcome={it.event.outcome} />
+                          <OutcomeBadge
+                            outcome={it.event.outcome}
+                            resistedLabel={behaviorFor(it.event.behaviorId)?.verbResist}
+                            actedLabel={behaviorFor(it.event.behaviorId)?.verbDid}
+                          />
                         </View>
                       </Card>
                     </Pressable>

@@ -36,7 +36,7 @@ export const QUOTE_CATEGORY_HINT: Record<QuoteCategory, string> = {
   aphorism: 'Kısa, sakin cümleler.',
   motivation: 'Bugün için tek bir hatırlatma.',
   calm: 'Nefes, duraklama, farkındalık.',
-  science: 'Dürtüler nasıl çalışır — küçük bilgiler.',
+  science: 'İstekler nasıl çalışır — küçük bilgiler.',
   health: 'Temiz süreye göre vücudunda neler değişiyor.',
   own: 'Nedenlerin ve kendi notların — en güçlüsü.',
   lyrics: 'Sana iyi gelen dizeleri kendin ekle; telifli içerik dağıtmıyoruz.',

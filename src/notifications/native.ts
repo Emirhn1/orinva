@@ -1,18 +1,21 @@
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
 import type * as NotificationsNS from 'expo-notifications';
 import { PlannedNotification } from './planner';
+import { NOTIFICATIONS_ENABLED } from './config';
 
 /**
  * Thin wrapper over expo-notifications (iOS/Android). The web build gets
  * `native.web.ts` — same exports, all no-ops — so nothing else in the app
- * has to branch on platform. Expo Go (SDK 53+) still supports *local*
- * scheduled notifications, which is all Part 3 needs; remote push is Part 4.
+ * has to branch on platform. Expo Go cannot safely load this module on
+ * Android, so it receives the same no-op behavior as the web preview.
  */
 type N = typeof NotificationsNS;
 
-// Metro resolves `native.web.ts` for the browser, so this file (and its static
-// import) only ever ships to iOS/Android.
+// Do not statically import expo-notifications: recent Expo Go Android clients
+// throw while evaluating the module. Development and production builds keep the
+// full native implementation.
+const Notifications: N | null = NOTIFICATIONS_ENABLED ? require('expo-notifications') : null;
+
 function api(): N | null {
   return Notifications;
 }

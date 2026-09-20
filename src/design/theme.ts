@@ -15,6 +15,7 @@ export interface SemanticColors {
   onAccent: string;
 
   indigo: string;
+  navy: string;
   success: string;
   successSoft: string;
   amber: string;
@@ -56,12 +57,13 @@ function buildTheme(mode: ThemeMode): SemanticColors {
     onAccent: palette.white,
 
     indigo: palette.indigo500,
+    navy: isDark ? palette.indigo300 : palette.indigo800,
     success: isDark ? palette.successOnDark : palette.successBase,
     successSoft: isDark ? palette.successSoftDark : palette.successSoftLight,
     amber: isDark ? palette.amberOnDark : palette.amberBase,
     amberSoft: isDark ? palette.amberSoftDark : palette.amberSoftLight,
-    terracotta: isDark ? palette.terracottaOnDark : palette.terracottaBase,
-    terracottaSoft: isDark ? palette.terracottaSoftDark : palette.terracottaSoftLight,
+    terracotta: isDark ? palette.amberOnDark : palette.amberBase,
+    terracottaSoft: isDark ? palette.amberSoftDark : palette.amberSoftLight,
     violet: isDark ? palette.violetOnDark : palette.violetBase,
     violetSoft: isDark ? palette.violetSoftDark : palette.violetSoftLight,
     slateBlue: isDark ? palette.slateBlueOnDark : palette.slateBlueBase,
