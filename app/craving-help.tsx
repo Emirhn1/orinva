@@ -10,6 +10,7 @@ import { MICRO_PLAN_OPTIONS } from '@/content/library';
 import { TRIGGER_CHIPS } from '@/content/chips';
 import { usageKey } from '@/utils/chips';
 import { EventOutcome } from '@/data/types';
+import { commitActed } from '@/utils/actedFlow';
 
 type Step = 'notice' | 'plan' | 'closure' | 'help';
 
@@ -76,7 +77,7 @@ export default function CravingHelpScreen() {
   const finish = (outcome: EventOutcome) => {
     if (!behavior) return;
     if (outcome === 'acted') {
-      router.replace({ pathname: '/relapse-recovery', params: { behaviorId: behavior.id, eventId: eventId ?? '' } });
+      commitActed(router, behavior, { eventId, source: 'craving_help', extra: { helpedByPlan: selectedPlan }, afterQuiet: () => router.replace('/(tabs)/today') });
       return;
     }
     if (eventId) closeEvent(eventId, outcome, { helpedByPlan: selectedPlan });

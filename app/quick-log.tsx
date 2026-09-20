@@ -10,6 +10,7 @@ import { toast } from '@/store/useToastStore';
 import { EventOutcome, EventSource } from '@/data/types';
 import { TRIGGER_CHIPS, LOCATION_CHIPS, COMPANY_CHIPS } from '@/content/chips';
 import { usageKey } from '@/utils/chips';
+import { commitActed } from '@/utils/actedFlow';
 
 type Stage = 'form' | 'saved';
 
@@ -69,8 +70,8 @@ export default function QuickLogSheet() {
     ]);
 
     if (outcome === 'acted') {
-      // §41: no haptic on a slip — acknowledgment, not a buzz.
-      router.replace({ pathname: '/relapse-recovery', params: { behaviorId, eventId: event.id } });
+      // §41: no haptic on a slip. Real relapse → recovery flow; otherwise a quiet count + undo.
+      if (commitActed(router, behavior!, { eventId: event.id, source }) === 'quiet') close();
       return;
     }
 

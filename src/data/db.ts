@@ -4,7 +4,7 @@ import * as SQLite from 'expo-sqlite';
 // project's local database on the same device/simulator.
 export const db = SQLite.openDatabaseSync('orinva-mobile-v1.db');
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 const TABLE_NAMES = ['behaviors', 'events', 'journal_entries', 'reasons', 'checkins', 'milestones', 'kv_settings', 'user_quotes', 'quote_meta'];
 
@@ -55,6 +55,7 @@ function migrateToV2() {
   addColumnIfMissing('behaviors', 'baselinePerDay', 'REAL');
   addColumnIfMissing('behaviors', 'savingsGoalLabel', 'TEXT');
   addColumnIfMissing('behaviors', 'savingsGoalAmount', 'REAL');
+  addColumnIfMissing('behaviors', 'dailyTarget', 'REAL');
 
   addColumnIfMissing('journal_entries', 'mood', 'TEXT');
 
@@ -91,6 +92,7 @@ export function initDb() {
       baselinePerDay REAL,
       savingsGoalLabel TEXT,
       savingsGoalAmount REAL,
+      dailyTarget REAL,
       planAlternative TEXT,
       createdAt TEXT NOT NULL,
       archived INTEGER NOT NULL DEFAULT 0,

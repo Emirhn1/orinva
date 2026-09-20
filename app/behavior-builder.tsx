@@ -50,6 +50,7 @@ export default function BehaviorBuilderScreen() {
   const [minutes, setMinutes] = useState(editing?.minutesPerUnit ? String(editing.minutesPerUnit) : '');
   const [goalLabel, setGoalLabel] = useState(editing?.savingsGoalLabel ?? '');
   const [goalAmount, setGoalAmount] = useState(editing?.savingsGoalAmount ? String(editing.savingsGoalAmount) : '');
+  const [dailyTarget, setDailyTarget] = useState(editing?.dailyTarget ? String(editing.dailyTarget) : '');
   const [confirmArchive, setConfirmArchive] = useState(false);
 
   const template = BEHAVIOR_TEMPLATES.find((t) => t.id === category);
@@ -82,14 +83,15 @@ export default function BehaviorBuilderScreen() {
         }
       : { baselinePerDay: undefined, costPerUnit: undefined, minutesPerUnit: undefined, savingsGoalLabel: undefined, savingsGoalAmount: undefined };
 
+    const target = goalMode === 'reduce' ? parseNum(dailyTarget) : undefined;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     if (editing) {
-      updateBehavior(editing.id, { name: name.trim(), category, goalMode, planAlternative, ...earnings });
+      updateBehavior(editing.id, { name: name.trim(), category, goalMode, planAlternative, dailyTarget: target, ...earnings });
       toast.show({ message: 'Güncellendi', tone: 'success' });
       router.back();
       return;
     }
-    const behavior = addBehavior({ name: name.trim(), category, goalMode, unit: 'event', planAlternative, ...earnings });
+    const behavior = addBehavior({ name: name.trim(), category, goalMode, unit: 'event', planAlternative, dailyTarget: target, ...earnings });
     toast.show({ message: `${behavior.name} eklendi`, tone: 'success' });
     router.replace({ pathname: '/(tabs)/journey/[id]', params: { id: behavior.id } });
   };
@@ -138,6 +140,15 @@ export default function BehaviorBuilderScreen() {
           <Chip key={m.id} label={m.title} selected={goalMode === m.id} onPress={() => setGoalMode(m.id)} />
         ))}
       </View>
+
+      {goalMode === 'reduce' ? (
+        <View style={{ marginTop: tokens.spacing['16'] }}>
+          <Input label={`Günlük hedef (kaç ${unitWord}?)`} placeholder="Örn. 10" value={dailyTarget} onChangeText={setDailyTarget} keyboardType="decimal-pad" />
+          <Text variant="caption" color="tertiary" style={{ marginTop: tokens.spacing['8'] }}>
+            Bugün'de "4 / 10" olarak görünür. Hedefi aşmak kırmızı bir şey değil; sadece veri.
+          </Text>
+        </View>
+      ) : null}
 
       {similar && !nameClash ? (
         <Surface radius="lg" bordered style={{ padding: tokens.spacing['16'], marginTop: tokens.spacing['16'], borderColor: colors.amber }}>

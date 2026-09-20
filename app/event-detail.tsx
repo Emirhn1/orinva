@@ -9,6 +9,7 @@ import { toast } from '@/store/useToastStore';
 import { EventOutcome } from '@/data/types';
 import { TRIGGER_CHIPS, LOCATION_CHIPS } from '@/content/chips';
 import { formatClock, formatRelativeTime } from '@/utils/date';
+import { commitActed } from '@/utils/actedFlow';
 
 /**
  * H15 — every record can be corrected or removed later. Also where an "open"
@@ -42,7 +43,7 @@ export default function EventDetailSheet() {
     const outcomeChanged = outcome !== event.outcome;
     if (outcome === 'acted' && outcomeChanged) {
       updateEvent(event.id, { intensity, triggers, location, note: note.trim() || null });
-      router.replace({ pathname: '/relapse-recovery', params: { behaviorId: behavior.id, eventId: event.id } });
+      if (commitActed(router, behavior, { eventId: event.id }) === 'quiet') close();
       return;
     }
     updateEvent(event.id, {

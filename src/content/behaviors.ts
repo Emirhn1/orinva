@@ -12,3 +12,13 @@ export const GOAL_LABEL: Record<GoalMode, string> = { quit: 'Bırak', reduce: 'A
 export function unitWordFor(category: BehaviorCategory | null): string {
   return category === 'nicotine' ? 'sigara' : category === 'social_media' ? 'oturum' : 'kez';
 }
+
+/** One-tap count button label: "İçtim" / "Açtım" / "Yaptım". */
+export function actedVerbFor(category: BehaviorCategory | null): string {
+  return category === 'nicotine' ? 'İçtim' : category === 'social_media' ? 'Açtım' : 'Yaptım';
+}
+
+/** "3 içildi" / "3 açıldı" / "3 yapıldı" */
+export function actedNounFor(category: BehaviorCategory | null): string {
+  return category === 'nicotine' ? 'içildi' : category === 'social_media' ? 'açıldı' : 'yapıldı';
+}

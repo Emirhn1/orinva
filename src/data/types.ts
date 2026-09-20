@@ -18,6 +18,8 @@ export interface Behavior {
   baselinePerDay?: number;
   savingsGoalLabel?: string;
   savingsGoalAmount?: number;
+  /** "Azalt" modu: günlük hedef adet (F8). */
+  dailyTarget?: number;
   planAlternative?: string;
   createdAt: string; // ISO
   archived: boolean;

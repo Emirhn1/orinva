@@ -5,12 +5,14 @@ import { ScreenContainer, Text, Card, Button, IconButton, EmptyState, ProgressRi
 import { Icon } from '@/icons';
 import { useTheme } from '@/design/ThemeProvider';
 import { useAppStore, checkMilestonesForBehavior } from '@/store/useAppStore';
-import { cleanDuration, milestoneProgress, computeEarnings } from '@/utils/journey';
+import { cleanDuration, milestoneProgress, computeEarnings, computeActedStats } from '@/utils/journey';
 import { formatRelativeTime, timeOfDayGreeting, todayKey, formatDuration, formatRemaining, formatMoney, formatMinutesHuman, dayKey } from '@/utils/date';
 import { useNow } from '@/utils/useNow';
 import { questionForDate } from '@/content/library';
 import { Quote, QUOTE_CATEGORY_LABEL } from '@/content/quotes';
 import { Behavior } from '@/data/types';
+import { actedVerbFor, actedNounFor } from '@/content/behaviors';
+import { commitActed } from '@/utils/actedFlow';
 
 const GREETING: Record<string, string> = {
   morning: 'Günaydın',
@@ -93,6 +95,10 @@ export default function TodayScreen() {
   const duration = cleanDuration(focus, now);
   const ms = milestoneProgress(duration.totalHours);
   const earnings = computeEarnings(focus, now);
+  const acted = computeActedStats(events, focus, now);
+  const overTarget = !!focus.dailyTarget && acted.today > focus.dailyTarget;
+
+  const logActed = () => commitActed(router, focus, { source: 'today' });
 
   return (
     <ScreenContainer>
@@ -147,6 +153,17 @@ export default function TodayScreen() {
           </View>
         ) : null}
 
+        {/* Bugün kaç tane — quick count, not tucked behind Journal (this is the whole point of the request) */}
+        {acted.today > 0 || focus.dailyTarget ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['8'], marginTop: tokens.spacing['16'] }}>
+            <Icon name="activity" size={16} color={overTarget ? colors.amber : colors.textSecondary} />
+            <Text variant="label" color={overTarget ? 'amber' : 'secondary'} tabular>
+              Bugün {acted.today}
+              {focus.dailyTarget ? ` / ${focus.dailyTarget}` : ''} {actedNounFor(focus.category)}
+            </Text>
+          </View>
+        ) : null}
+
         <View style={{ flexDirection: 'row', gap: tokens.spacing['12'], marginTop: tokens.spacing['20'] }}>
           <View style={{ flex: 1 }}>
             <Button label="Dürtü geldi" variant="secondary" onPress={() => router.push({ pathname: '/quick-log', params: { behaviorId: focus.id, source: 'today' } })} />
@@ -155,6 +172,13 @@ export default function TodayScreen() {
             <Button label="Direndim" variant="ghost" onPress={() => router.push({ pathname: '/quick-log', params: { behaviorId: focus.id, outcome: 'resisted', source: 'today' } })} />
           </View>
         </View>
+
+        {/* Quiet, one-tap count — no flow, no judgement, just a number (see chat: "sigara içtim yapıcam ama olmuyor"). */}
+        <Pressable onPress={logActed} accessibilityRole="button" accessibilityLabel={`Bir ${focus.category === 'nicotine' ? 'sigara' : 'kez'} ${actedVerbFor(focus.category).toLowerCase()} olarak kaydet`} style={{ marginTop: tokens.spacing['12'], alignSelf: 'center', paddingVertical: tokens.spacing['8'], paddingHorizontal: tokens.spacing['16'] }}>
+          <Text variant="caption" color="tertiary">
+            + {actedVerbFor(focus.category)}
+          </Text>
+        </Pressable>
       </Card>
 
       {/* H14 — the other behaviors, one tap away */}

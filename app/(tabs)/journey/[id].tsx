@@ -7,11 +7,12 @@ import { JourneyAnalytics } from '@/components/journey/JourneyAnalytics';
 import { Icon } from '@/icons';
 import { useTheme } from '@/design/ThemeProvider';
 import { useAppStore } from '@/store/useAppStore';
-import { cleanDuration, milestoneProgress, reachedMilestones } from '@/utils/journey';
+import { cleanDuration, milestoneProgress, reachedMilestones, computeActedStats, actedSeries } from '@/utils/journey';
 import { formatRelativeTime, formatDuration, formatRemaining } from '@/utils/date';
 import { useNow } from '@/utils/useNow';
 import { TRIGGER_CHIPS } from '@/content/chips';
-import { GOAL_LABEL } from '@/content/behaviors';
+import { GOAL_LABEL, actedVerbFor, actedNounFor } from '@/content/behaviors';
+import { commitActed } from '@/utils/actedFlow';
 
 export default function BehaviorDetailScreen() {
   const router = useRouter();
@@ -41,6 +42,10 @@ export default function BehaviorDetailScreen() {
   const d = cleanDuration(behavior, now);
   const ms = milestoneProgress(d.totalHours);
   const reached = reachedMilestones(d.totalHours);
+  const acted = computeActedStats(events, behavior, now);
+  const week = actedSeries(events, behavior.id, 7, now);
+  const weekMax = Math.max(1, ...week.map((w) => w.count));
+  const overTarget = !!behavior.dailyTarget && acted.today > behavior.dailyTarget;
 
   return (
     <ScreenContainer>
@@ -101,6 +106,53 @@ export default function BehaviorDetailScreen() {
           </View>
         </View>
       </Card>
+
+      {/* "Kaç tane?" — daily count, quick +1, 7-day bars */}
+      {acted.week > 0 || behavior.dailyTarget ? (
+        <Card padded style={{ marginTop: tokens.spacing['16'] }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View>
+              <Text variant="label">Bugün</Text>
+              <Text variant="statSmall" tabular style={{ marginTop: tokens.spacing['4'], color: overTarget ? colors.amber : undefined }}>
+                {acted.today}
+                {behavior.dailyTarget ? <Text variant="body" color="tertiary">{` / ${behavior.dailyTarget}`}</Text> : null}
+              </Text>
+              <Text variant="caption" color="tertiary" style={{ marginTop: tokens.spacing['4'] }}>
+                {actedNounFor(behavior.category)} · bu hafta {acted.week}
+                {acted.avgPerDay !== null ? ` · günlük ort. ${acted.avgPerDay.toFixed(1)}` : ''}
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => commitActed(router, behavior)}
+              accessibilityRole="button"
+              accessibilityLabel={`Bir ${actedVerbFor(behavior.category).toLowerCase()} olarak kaydet`}
+              style={{ minWidth: 44, minHeight: 44, borderRadius: tokens.radius.pill, backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tokens.spacing['16'] }}
+            >
+              <Text variant="label" color="indigo">
+                + {actedVerbFor(behavior.category)}
+              </Text>
+            </Pressable>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: tokens.spacing['8'], marginTop: tokens.spacing['20'], height: 48 }}>
+            {week.map((w) => (
+              <View key={w.key} style={{ flex: 1, alignItems: 'center', gap: tokens.spacing['4'] }}>
+                <View
+                  style={{
+                    width: '100%',
+                    height: Math.max(3, (w.count / weekMax) * 36),
+                    borderRadius: tokens.radius.xs,
+                    backgroundColor: w.count > 0 ? (behavior.dailyTarget && w.count > behavior.dailyTarget ? colors.amber : colors.indigo) : colors.surfaceSecondary,
+                    opacity: w.count > 0 ? 0.85 : 1,
+                  }}
+                />
+                <Text variant="caption" color="tertiary" style={{ fontSize: 10 }}>
+                  {w.label}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </Card>
+      ) : null}
 
       {behavior.planAlternative || reasons.length > 0 ? (
         <Card padded style={{ marginTop: tokens.spacing['16'] }}>

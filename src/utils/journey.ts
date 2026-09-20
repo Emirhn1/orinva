@@ -512,3 +512,57 @@ export function outcomeLabel(outcome: EventOutcome): string {
       return 'Açık';
   }
 }
+
+// ---------------------------------------------------------------------------
+// "Kaç tane?" — acted counts (sigara içtim / telefonu açtım) per day
+// ---------------------------------------------------------------------------
+
+export function actedOn(events: UrgeEvent[], behaviorId: string, key: string): number {
+  return events.filter((e) => e.behaviorId === behaviorId && e.outcome === 'acted' && dayKey(e.startedAt) === key).length;
+}
+
+export interface ActedStats {
+  today: number;
+  week: number; // last 7 days incl. today
+  avgPerDay: number | null; // over the last 7 days, null when no history yet
+  daysTracked: number;
+  lastAt: string | null;
+}
+
+export function computeActedStats(events: UrgeEvent[], behavior: Behavior, now: Date = new Date()): ActedStats {
+  const mine = events.filter((e) => e.behaviorId === behavior.id && e.outcome === 'acted');
+  const todayK = dayKey(now);
+  const weekCut = now.getTime() - 7 * 86_400_000;
+  const week = mine.filter((e) => new Date(e.startedAt).getTime() >= weekCut).length;
+  const daysTracked = Math.max(1, Math.min(7, Math.ceil((now.getTime() - new Date(behavior.createdAt).getTime()) / 86_400_000)));
+  return {
+    today: mine.filter((e) => dayKey(e.startedAt) === todayK).length,
+    week,
+    avgPerDay: mine.length ? week / daysTracked : null,
+    daysTracked,
+    lastAt: mine[0]?.startedAt ?? null,
+  };
+}
+
+/** Per-day acted counts for the last N days (oldest → newest). */
+export function actedSeries(events: UrgeEvent[], behaviorId: string, days: number, now: Date = new Date()): { key: string; label: string; count: number }[] {
+  const out: { key: string; label: string; count: number }[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const key = dayKey(d);
+    out.push({ key, label: DAY_SHORT[d.getDay()], count: actedOn(events, behaviorId, key) });
+  }
+  return out;
+}
+
+/**
+ * The relapse-recovery flow is for a real slip: "bırak" mode and at least a
+ * day clean. Counting a cigarette in "azalt" / "fark et" / "geciktir" mode
+ * — or a second one an hour after the first — is just data and gets a quiet
+ * one-tap log with undo instead of three screens.
+ */
+export function shouldRunRecovery(behavior: Behavior, now: Date = new Date()): boolean {
+  if (behavior.goalMode !== 'quit') return false;
+  return cleanDuration(behavior, now).totalHours >= 24;
+}

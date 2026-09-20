@@ -9,6 +9,7 @@ import { useTheme } from '@/design/ThemeProvider';
 import { useAppStore } from '@/store/useAppStore';
 import { toast } from '@/store/useToastStore';
 import { EventOutcome } from '@/data/types';
+import { commitActed } from '@/utils/actedFlow';
 
 const SESSION_SECONDS = 180;
 const BREATH_SECONDS = 4;
@@ -78,7 +79,7 @@ export default function WaveModeScreen() {
   const finish = (outcome: EventOutcome) => {
     if (!behavior) return;
     if (outcome === 'acted') {
-      router.replace({ pathname: '/relapse-recovery', params: { behaviorId: behavior.id, eventId: eventId ?? '' } });
+      commitActed(router, behavior, { eventId, source: 'wave', extra: { intensityAfter: after, helpedByPlan: 'wave' }, afterQuiet: () => router.replace('/(tabs)/today') });
       return;
     }
     if (eventId) closeEvent(eventId, outcome, { intensityAfter: after, helpedByPlan: 'wave' });

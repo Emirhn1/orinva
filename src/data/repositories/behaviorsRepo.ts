@@ -19,6 +19,7 @@ function rowToBehavior(row: any): Behavior {
     baselinePerDay: num(row.baselinePerDay),
     savingsGoalLabel: row.savingsGoalLabel ?? undefined,
     savingsGoalAmount: num(row.savingsGoalAmount),
+    dailyTarget: num(row.dailyTarget),
     planAlternative: row.planAlternative ?? undefined,
     createdAt: row.createdAt,
     archived: !!row.archived,
@@ -49,8 +50,8 @@ export const behaviorsRepo = {
       cleanSinceAt: now,
     };
     db.runSync(
-      `INSERT INTO behaviors (id, name, category, goalMode, unit, costPerUnit, costCurrency, minutesPerUnit, baselinePerDay, savingsGoalLabel, savingsGoalAmount, planAlternative, createdAt, archived, cleanSinceAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      `INSERT INTO behaviors (id, name, category, goalMode, unit, costPerUnit, costCurrency, minutesPerUnit, baselinePerDay, savingsGoalLabel, savingsGoalAmount, dailyTarget, planAlternative, createdAt, archived, cleanSinceAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
       [
         behavior.id,
         behavior.name,
@@ -63,6 +64,7 @@ export const behaviorsRepo = {
         behavior.baselinePerDay ?? null,
         behavior.savingsGoalLabel ?? null,
         behavior.savingsGoalAmount ?? null,
+        behavior.dailyTarget ?? null,
         behavior.planAlternative ?? null,
         behavior.createdAt,
         0,
@@ -77,7 +79,7 @@ export const behaviorsRepo = {
     if (!existing) return null;
     const next = { ...existing, ...patch };
     db.runSync(
-      `UPDATE behaviors SET name=?, category=?, goalMode=?, unit=?, costPerUnit=?, costCurrency=?, minutesPerUnit=?, baselinePerDay=?, savingsGoalLabel=?, savingsGoalAmount=?, planAlternative=?, archived=?, cleanSinceAt=? WHERE id=?;`,
+      `UPDATE behaviors SET name=?, category=?, goalMode=?, unit=?, costPerUnit=?, costCurrency=?, minutesPerUnit=?, baselinePerDay=?, savingsGoalLabel=?, savingsGoalAmount=?, dailyTarget=?, planAlternative=?, archived=?, cleanSinceAt=? WHERE id=?;`,
       [
         next.name,
         next.category,
@@ -89,6 +91,7 @@ export const behaviorsRepo = {
         next.baselinePerDay ?? null,
         next.savingsGoalLabel ?? null,
         next.savingsGoalAmount ?? null,
+        next.dailyTarget ?? null,
         next.planAlternative ?? null,
         next.archived ? 1 : 0,
         next.cleanSinceAt,

@@ -7,6 +7,7 @@ import { useTheme } from '@/design/ThemeProvider';
 import { useAppStore } from '@/store/useAppStore';
 import { toast } from '@/store/useToastStore';
 import { computeDelayStats } from '@/utils/journey';
+import { commitActed } from '@/utils/actedFlow';
 
 const OPTIONS = [2, 5, 10, 20];
 
@@ -77,8 +78,7 @@ export default function DelayTimerScreen() {
     if (!behavior) return;
     const delaySeconds = totalDelayed + (step === 'running' ? elapsedNow() : 0);
     if (kind === 'acted') {
-      if (eventId) updateEvent(eventId, { delaySeconds });
-      router.replace({ pathname: '/relapse-recovery', params: { behaviorId: behavior.id, eventId: eventId ?? '' } });
+      commitActed(router, behavior, { eventId, source: 'delay_timer', extra: { delaySeconds, helpedByPlan: 'delay' }, afterQuiet: () => router.replace('/(tabs)/today') });
       return;
     }
     if (eventId) closeEvent(eventId, 'resisted', { delaySeconds, helpedByPlan: 'delay' });
