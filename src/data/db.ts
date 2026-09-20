@@ -4,22 +4,68 @@ import * as SQLite from 'expo-sqlite';
 // project's local database on the same device/simulator.
 export const db = SQLite.openDatabaseSync('orinva-mobile-v1.db');
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const TABLE_NAMES = ['behaviors', 'events', 'journal_entries', 'reasons', 'checkins', 'milestones', 'kv_settings'];
 
+function hasColumn(table: string, column: string): boolean {
+  const row = db.getFirstSync<{ cnt: number }>(
+    `SELECT count(*) as cnt FROM pragma_table_info('${table}') WHERE name = '${column}';`
+  );
+  return !!row && row.cnt > 0;
+}
+
+function tableExists(table: string): boolean {
+  const row = db.getFirstSync<{ name: string }>(
+    `SELECT name FROM sqlite_master WHERE type='table' AND name='${table}';`
+  );
+  return !!row;
+}
+
 function schemaLooksStale(): boolean {
   try {
-    const row = db.getFirstSync<{ cnt: number }>(
-      "SELECT count(*) as cnt FROM pragma_table_info('events') WHERE name = 'startedAt';"
-    );
-    const eventsTableExists = db.getFirstSync<{ name: string }>(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='events';"
-    );
-    if (eventsTableExists && (!row || row.cnt === 0)) return true;
+    if (tableExists('events') && !hasColumn('events', 'startedAt')) return true;
     return false;
   } catch {
     return true;
+  }
+}
+
+/** Adds a column if it's missing — safe to call on every boot. */
+function addColumnIfMissing(table: string, column: string, definition: string) {
+  if (!tableExists(table)) return;
+  if (hasColumn(table, column)) return;
+  db.execSync(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
+}
+
+/**
+ * v1 → v2: H5 model split (event = urge, outcome = result), richer context
+ * chips (triggers/location/company), delay timer + wave mode measurements,
+ * entry-point tracking, and the earnings counter fields on behaviors.
+ */
+function migrateToV2() {
+  addColumnIfMissing('events', 'intensityAfter', 'INTEGER');
+  addColumnIfMissing('events', 'location', 'TEXT');
+  addColumnIfMissing('events', 'company', 'TEXT');
+  addColumnIfMissing('events', 'outcomeUpdatedAt', 'TEXT');
+  addColumnIfMissing('events', 'delaySeconds', 'INTEGER');
+  addColumnIfMissing('events', 'source', "TEXT NOT NULL DEFAULT 'app'");
+
+  addColumnIfMissing('behaviors', 'minutesPerUnit', 'REAL');
+  addColumnIfMissing('behaviors', 'baselinePerDay', 'REAL');
+  addColumnIfMissing('behaviors', 'savingsGoalLabel', 'TEXT');
+  addColumnIfMissing('behaviors', 'savingsGoalAmount', 'REAL');
+
+  addColumnIfMissing('journal_entries', 'mood', 'TEXT');
+
+  if (tableExists('events') && hasColumn('events', 'kind')) {
+    // Old rows: kind carried the outcome. Fold it into `outcome` and normalise `passed` → `resisted`.
+    db.execSync(`
+      UPDATE events SET outcome = 'resisted' WHERE outcome = 'passed';
+      UPDATE events SET outcome = 'resisted', outcomeUpdatedAt = startedAt WHERE kind = 'resisted' AND outcome IS NULL;
+      UPDATE events SET outcome = 'acted', outcomeUpdatedAt = startedAt WHERE kind = 'acted' AND outcome IS NULL;
+      UPDATE events SET kind = 'urge';
+    `);
   }
 }
 
@@ -41,6 +87,10 @@ export function initDb() {
       unit TEXT NOT NULL,
       costPerUnit REAL,
       costCurrency TEXT,
+      minutesPerUnit REAL,
+      baselinePerDay REAL,
+      savingsGoalLabel TEXT,
+      savingsGoalAmount REAL,
       planAlternative TEXT,
       createdAt TEXT NOT NULL,
       archived INTEGER NOT NULL DEFAULT 0,
@@ -50,15 +100,21 @@ export function initDb() {
     CREATE TABLE IF NOT EXISTS events (
       id TEXT PRIMARY KEY NOT NULL,
       behaviorId TEXT NOT NULL,
-      kind TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'urge',
       startedAt TEXT NOT NULL,
       endedAt TEXT,
       intensity INTEGER,
+      intensityAfter INTEGER,
       mood TEXT,
       contextTags TEXT NOT NULL DEFAULT '[]',
+      location TEXT,
+      company TEXT,
       note TEXT,
       outcome TEXT,
-      helpedByPlan TEXT
+      outcomeUpdatedAt TEXT,
+      delaySeconds INTEGER,
+      helpedByPlan TEXT,
+      source TEXT NOT NULL DEFAULT 'app'
     );
 
     CREATE TABLE IF NOT EXISTS journal_entries (
@@ -66,7 +122,8 @@ export function initDb() {
       createdAt TEXT NOT NULL,
       text TEXT NOT NULL,
       linkedEventId TEXT,
-      tag TEXT
+      tag TEXT,
+      mood TEXT
     );
 
     CREATE TABLE IF NOT EXISTS reasons (
@@ -100,7 +157,9 @@ export function initDb() {
     );
   `);
 
-  db.execSync(`INSERT OR IGNORE INTO kv_settings (key, value) VALUES ('schemaVersion', '${SCHEMA_VERSION}');`);
+  migrateToV2();
+
+  db.runSync(`INSERT OR REPLACE INTO kv_settings (key, value) VALUES ('schemaVersion', ?);`, [String(SCHEMA_VERSION)]);
 }
 
 export function wipeAllTables() {
@@ -118,6 +177,7 @@ export function wipeAllTables() {
 export function exportAllData() {
   return {
     exportedAt: new Date().toISOString(),
+    schemaVersion: SCHEMA_VERSION,
     behaviors: db.getAllSync('SELECT * FROM behaviors;'),
     events: db.getAllSync('SELECT * FROM events;'),
     journalEntries: db.getAllSync('SELECT * FROM journal_entries;'),

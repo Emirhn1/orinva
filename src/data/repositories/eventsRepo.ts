@@ -6,16 +6,31 @@ function rowToEvent(row: any): UrgeEvent {
   return {
     id: row.id,
     behaviorId: row.behaviorId,
-    kind: row.kind,
     startedAt: row.startedAt,
-    endedAt: row.endedAt,
-    intensity: row.intensity,
-    mood: row.mood,
-    contextTags: JSON.parse(row.contextTags ?? '[]'),
-    note: row.note,
-    outcome: row.outcome,
-    helpedByPlan: row.helpedByPlan,
+    endedAt: row.endedAt ?? null,
+    intensity: row.intensity ?? null,
+    intensityAfter: row.intensityAfter ?? null,
+    mood: row.mood ?? null,
+    triggers: safeParse(row.contextTags),
+    location: row.location ?? null,
+    company: row.company ?? null,
+    note: row.note ?? null,
+    outcome: row.outcome ?? null,
+    outcomeUpdatedAt: row.outcomeUpdatedAt ?? null,
+    delaySeconds: row.delaySeconds ?? null,
+    helpedByPlan: row.helpedByPlan ?? null,
+    source: row.source ?? 'app',
   };
+}
+
+function safeParse(raw: unknown): string[] {
+  if (typeof raw !== 'string') return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
 }
 
 export const eventsRepo = {
@@ -37,42 +52,58 @@ export const eventsRepo = {
   create(input: Omit<UrgeEvent, 'id'>): UrgeEvent {
     const event: UrgeEvent = { ...input, id: generateId() };
     db.runSync(
-      `INSERT INTO events (id, behaviorId, kind, startedAt, endedAt, intensity, mood, contextTags, note, outcome, helpedByPlan)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      `INSERT INTO events (id, behaviorId, kind, startedAt, endedAt, intensity, intensityAfter, mood, contextTags, location, company, note, outcome, outcomeUpdatedAt, delaySeconds, helpedByPlan, source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
       [
         event.id,
         event.behaviorId,
-        event.kind,
+        'urge',
         event.startedAt,
         event.endedAt,
         event.intensity,
+        event.intensityAfter,
         event.mood,
-        JSON.stringify(event.contextTags ?? []),
+        JSON.stringify(event.triggers ?? []),
+        event.location,
+        event.company,
         event.note,
         event.outcome,
+        event.outcomeUpdatedAt,
+        event.delaySeconds,
         event.helpedByPlan,
+        event.source,
       ]
     );
     return event;
   },
 
-  update(id: string, patch: Partial<UrgeEvent>): void {
+  update(id: string, patch: Partial<UrgeEvent>): UrgeEvent | null {
     const existing = eventsRepo.get(id);
-    if (!existing) return;
+    if (!existing) return null;
     const next = { ...existing, ...patch };
     db.runSync(
-      `UPDATE events SET kind=?, endedAt=?, intensity=?, mood=?, contextTags=?, note=?, outcome=?, helpedByPlan=? WHERE id=?;`,
+      `UPDATE events SET endedAt=?, intensity=?, intensityAfter=?, mood=?, contextTags=?, location=?, company=?, note=?, outcome=?, outcomeUpdatedAt=?, delaySeconds=?, helpedByPlan=?, source=? WHERE id=?;`,
       [
-        next.kind,
         next.endedAt,
         next.intensity,
+        next.intensityAfter,
         next.mood,
-        JSON.stringify(next.contextTags ?? []),
+        JSON.stringify(next.triggers ?? []),
+        next.location,
+        next.company,
         next.note,
         next.outcome,
+        next.outcomeUpdatedAt,
+        next.delaySeconds,
         next.helpedByPlan,
+        next.source,
         id,
       ]
     );
+    return next;
+  },
+
+  remove(id: string): void {
+    db.runSync('DELETE FROM events WHERE id = ?;', [id]);
   },
 };

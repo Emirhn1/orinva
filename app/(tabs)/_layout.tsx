@@ -12,7 +12,8 @@ export default function TabsLayout() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const hideFab = pathname.startsWith('/you');
+  // Hidden on Sen (settings context) and on the journal composer (keyboard-first screen).
+  const hideFab = pathname.startsWith('/you') || pathname.endsWith('/journal/new');
 
   return (
     <View style={{ flex: 1 }}>

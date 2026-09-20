@@ -1,4 +1,4 @@
-import { palette, radius, spacing, typography, iconSize, componentHeight, motion, opacity, shadow } from './tokens';
+import { palette, radius, spacing, typography, iconSize, componentHeight, motion, opacity, shadow, touchTarget } from './tokens';
 
 export type ThemeMode = 'light' | 'dark';
 
@@ -31,6 +31,14 @@ export interface SemanticColors {
   scrim: string;
   shadowSurface: object;
   shadowOverlay: object;
+
+  /** Outcome semantics (Plan §6.6): resisted = success, delayed = slate blue, acted = amber. Never red. */
+  outcomeResisted: string;
+  outcomeResistedSoft: string;
+  outcomeDelayed: string;
+  outcomeDelayedSoft: string;
+  outcomeActed: string;
+  outcomeActedSoft: string;
 }
 
 function buildTheme(mode: ThemeMode): SemanticColors {
@@ -64,6 +72,13 @@ function buildTheme(mode: ThemeMode): SemanticColors {
     scrim: `rgba(9,12,19,${opacity.scrim})`,
     shadowSurface: isDark ? shadow.none : shadow.surfaceLight,
     shadowOverlay: isDark ? shadow.none : shadow.overlayLight,
+
+    outcomeResisted: isDark ? palette.successOnDark : palette.successBase,
+    outcomeResistedSoft: isDark ? palette.successSoftDark : palette.successSoftLight,
+    outcomeDelayed: isDark ? palette.slateBlueOnDark : palette.slateBlueBase,
+    outcomeDelayedSoft: isDark ? palette.slateBlueSoftDark : palette.slateBlueSoftLight,
+    outcomeActed: isDark ? palette.amberOnDark : palette.amberBase,
+    outcomeActedSoft: isDark ? palette.amberSoftDark : palette.amberSoftLight,
   };
 }
 
@@ -80,6 +95,22 @@ export const tokens = {
   componentHeight,
   motion,
   opacity,
+  touchTarget,
 };
 
 export type Tokens = typeof tokens;
+
+import type { EventOutcome } from '@/data/types';
+
+export function outcomeColors(colors: SemanticColors, outcome: EventOutcome): { fg: string; soft: string } {
+  switch (outcome) {
+    case 'resisted':
+      return { fg: colors.outcomeResisted, soft: colors.outcomeResistedSoft };
+    case 'delayed':
+      return { fg: colors.outcomeDelayed, soft: colors.outcomeDelayedSoft };
+    case 'acted':
+      return { fg: colors.outcomeActed, soft: colors.outcomeActedSoft };
+    default:
+      return { fg: colors.textSecondary, soft: colors.surfaceSecondary };
+  }
+}

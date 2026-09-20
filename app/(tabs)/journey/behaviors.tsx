@@ -1,15 +1,54 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ScreenContainer, Text, Card, IconButton, EmptyState, Badge } from '@/components/ui';
+import { ScreenContainer, Text, Card, IconButton, EmptyState, Badge, Button, SectionHeader } from '@/components/ui';
+import { Icon } from '@/icons';
 import { useTheme } from '@/design/ThemeProvider';
 import { useAppStore } from '@/store/useAppStore';
 import { cleanDuration } from '@/utils/journey';
+import { formatDuration } from '@/utils/date';
+import { useNow } from '@/utils/useNow';
+import { GOAL_LABEL } from '@/content/behaviors';
+import { Behavior } from '@/data/types';
 
 export default function BehaviorsScreen() {
   const router = useRouter();
-  const { tokens } = useTheme();
+  const { colors, tokens } = useTheme();
+  const now = useNow(60_000);
   const behaviors = useAppStore((s) => s.behaviors);
+  const unarchiveBehavior = useAppStore((s) => s.unarchiveBehavior);
+
+  const active = useMemo(() => behaviors.filter((b) => !b.archived), [behaviors]);
+  const archived = useMemo(() => behaviors.filter((b) => b.archived), [behaviors]);
+
+  const Row = ({ behavior: b }: { behavior: Behavior }) => {
+    const { id, name, goalMode, archived: isArchived } = b;
+    const d = cleanDuration(b, now);
+    return (
+      <Pressable onPress={() => router.push({ pathname: '/(tabs)/journey/[id]', params: { id } })} accessibilityRole="button" accessibilityLabel={name}>
+        <Card padded>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing['12'] }}>
+            <View style={{ flex: 1 }}>
+              <Text variant="label" numberOfLines={1}>
+                {name}
+              </Text>
+              <Text variant="caption" color="secondary" tabular>
+                {isArchived ? 'Arşivde' : formatDuration(d.totalMinutes, 'long')}
+              </Text>
+            </View>
+            {isArchived ? (
+              <Text variant="label" color="indigo" onPress={() => unarchiveBehavior(id)} accessibilityRole="button">
+                Geri aç
+              </Text>
+            ) : (
+              <Badge label={GOAL_LABEL[goalMode]} tone="slateBlue" />
+            )}
+            <Icon name="chevron-right" size={18} color={colors.textTertiary} />
+          </View>
+        </Card>
+      </Pressable>
+    );
+  };
 
   return (
     <ScreenContainer>
@@ -18,34 +57,32 @@ export default function BehaviorsScreen() {
         <Text variant="title">Davranışların</Text>
       </View>
 
-      {behaviors.length === 0 ? (
-        <EmptyState icon="compass" title="Henüz davranış yok" actionLabel="Ekle" onAction={() => router.push('/behavior-builder')} />
+      {active.length === 0 ? (
+        <Card padded>
+          <EmptyState icon="compass" title="Henüz davranış yok" description="İlk davranışını ekleyerek başla." actionLabel="Davranış ekle" onAction={() => router.push('/behavior-builder')} />
+        </Card>
       ) : (
         <View style={{ gap: tokens.spacing['12'] }}>
-          {behaviors.map((b) => {
-            const d = cleanDuration(b);
-            return (
-              <Pressable key={b.id} onPress={() => router.push({ pathname: '/(tabs)/journey/[id]', params: { id: b.id } })}>
-                <Card padded>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <View>
-                      <Text variant="label">{b.name}</Text>
-                      <Text variant="caption" color="secondary">{d.days} gün {d.hours} sa temiz</Text>
-                    </View>
-                    {b.archived ? <Badge label="Arşivde" /> : null}
-                  </View>
-                </Card>
-              </Pressable>
-            );
-          })}
+          {active.map((b) => (
+            <Row key={b.id} behavior={b} />
+          ))}
         </View>
       )}
 
       <View style={{ marginTop: tokens.spacing['20'] }}>
-        <Card padded>
-          <Text variant="label" onPress={() => router.push('/behavior-builder')}>+ Yeni davranış ekle</Text>
-        </Card>
+        <Button label="Yeni davranış ekle" variant="secondary" onPress={() => router.push('/behavior-builder')} />
       </View>
+
+      {archived.length > 0 ? (
+        <View style={{ marginTop: tokens.spacing['32'] }}>
+          <SectionHeader title="Arşiv" />
+          <View style={{ gap: tokens.spacing['12'] }}>
+            {archived.map((b) => (
+              <Row key={b.id} behavior={b} />
+            ))}
+          </View>
+        </View>
+      ) : null}
     </ScreenContainer>
   );
 }

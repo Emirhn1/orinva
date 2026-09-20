@@ -1,40 +1,77 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Animated, Pressable } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Pressable } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ModalShell, Text, Button, CravingSelector, Surface } from '@/components/ui';
+import { ModalShell, Text, Button, CravingSelector, Surface, ChipGroup } from '@/components/ui';
 import { Icon, IconName } from '@/icons';
 import { useTheme } from '@/design/ThemeProvider';
 import { useAppStore } from '@/store/useAppStore';
+import { toast } from '@/store/useToastStore';
 import { MICRO_PLAN_OPTIONS } from '@/content/library';
+import { TRIGGER_CHIPS } from '@/content/chips';
+import { usageKey } from '@/utils/chips';
 import { EventOutcome } from '@/data/types';
 
-type Step = 'notice' | 'breathe' | 'plan' | 'closure' | 'help';
+type Step = 'notice' | 'plan' | 'closure' | 'help';
 
+/**
+ * Zor An — the one flow the whole app is judged on. Three decisions max:
+ * how strong is it → what helps right now → how are you now.
+ * Wave mode and the delay timer are real screens; this flow hands off to them.
+ */
 export default function CravingHelpScreen() {
   const router = useRouter();
   const { colors, tokens } = useTheme();
-  const params = useLocalSearchParams<{ behaviorId: string; eventId?: string }>();
+  const params = useLocalSearchParams<{ behaviorId?: string; eventId?: string }>();
   const behaviors = useAppStore((s) => s.behaviors);
   const reasons = useAppStore((s) => s.reasons);
   const logEvent = useAppStore((s) => s.logEvent);
   const closeEvent = useAppStore((s) => s.closeEvent);
+  const updateEvent = useAppStore((s) => s.updateEvent);
+  const bumpChipUsage = useAppStore((s) => s.bumpChipUsage);
 
-  const behavior = behaviors.find((b) => b.id === params.behaviorId) ?? behaviors[0];
-  const reason = reasons.find((r) => r.type === 'reason' && (r.behaviorId === behavior?.id || r.behaviorId === null));
+  const behavior = behaviors.find((b) => b.id === params.behaviorId) ?? behaviors.find((b) => !b.archived);
+  const reason = useMemo(
+    () => reasons.find((r) => r.type === 'reason' && (r.behaviorId === behavior?.id || r.behaviorId === null)),
+    [reasons, behavior]
+  );
 
   const [step, setStep] = useState<Step>('notice');
   const [intensity, setIntensity] = useState<number | null>(null);
+  const [triggers, setTriggers] = useState<string[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [eventId, setEventId] = useState<string | null>(params.eventId ?? null);
 
   useEffect(() => {
     if (!eventId && behavior) {
-      const event = logEvent({ behaviorId: behavior.id, kind: 'urge', intensity: null });
+      const event = logEvent({ behaviorId: behavior.id, source: 'craving_help' });
       setEventId(event.id);
     }
   }, [behavior]);
 
-  const stepIndex = { notice: 0, breathe: 1, plan: 2, closure: 3, help: 3 }[step];
+  const stepIndex = { notice: 0, plan: 1, closure: 2, help: 2 }[step];
+
+  const persistNotice = () => {
+    if (eventId) updateEvent(eventId, { intensity, triggers });
+    bumpChipUsage(triggers.map((t) => usageKey('trigger', t)));
+  };
+
+  const choosePlan = (id: string) => {
+    if (!behavior) return;
+    setSelectedPlan(id);
+    if (id === 'wave') {
+      router.replace({ pathname: '/wave-mode', params: { behaviorId: behavior.id, eventId: eventId ?? '', intensity: intensity ?? '' } });
+      return;
+    }
+    if (id === 'delay') {
+      router.replace({ pathname: '/delay-timer', params: { behaviorId: behavior.id, eventId: eventId ?? '' } });
+      return;
+    }
+    if (id === 'write') {
+      if (eventId) updateEvent(eventId, { helpedByPlan: id });
+      router.replace({ pathname: '/(tabs)/journal/new', params: { eventId: eventId ?? '' } });
+      return;
+    }
+  };
 
   const finish = (outcome: EventOutcome) => {
     if (!behavior) return;
@@ -42,123 +79,85 @@ export default function CravingHelpScreen() {
       router.replace({ pathname: '/relapse-recovery', params: { behaviorId: behavior.id, eventId: eventId ?? '' } });
       return;
     }
-    if (eventId) closeEvent(eventId, outcome, selectedPlan);
+    if (eventId) closeEvent(eventId, outcome, { helpedByPlan: selectedPlan });
+    if (outcome === 'resisted') toast.show({ message: 'Geçti. Kaydettim.', tone: 'success' });
     router.replace('/(tabs)/today');
   };
 
   if (!behavior) return null;
 
   const footer = (
-    <Text variant="caption" color="tertiary" onPress={() => setStep('help')}>
+    <Text variant="caption" color="tertiary" onPress={() => setStep('help')} accessibilityRole="button">
       Kriz desteği
     </Text>
   );
 
   return (
-    <ModalShell onClose={() => router.back()} progress={(stepIndex + 1) / 4} footer={footer}>
+    <ModalShell onClose={() => router.back()} progress={(stepIndex + 1) / 3} footer={footer}>
       {step === 'notice' && (
-        <NoticeStep
-          intensity={intensity}
-          setIntensity={setIntensity}
-          onNext={() => setStep('breathe')}
-        />
+        <View>
+          <Text variant="headline">Şu an dürtü var</Text>
+          <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['8'], marginBottom: tokens.spacing['24'] }}>
+            Burada olduğun için iyi. İstersen işaretle, istersen doğrudan devam et.
+          </Text>
+          <Text variant="label" color="secondary" style={{ marginBottom: tokens.spacing['8'] }}>
+            Ne kadar zor?
+          </Text>
+          <CravingSelector value={intensity} onChange={(v) => setIntensity(intensity === v ? null : v)} />
+          <View style={{ marginTop: tokens.spacing['24'] }}>
+            <ChipGroup mode="multi" label="Tetikleyici?" options={TRIGGER_CHIPS} namespace="trigger" value={triggers} onChange={setTriggers} max={3} />
+          </View>
+          <View style={{ marginTop: tokens.spacing['32'] }}>
+            <Button
+              label="Devam et"
+              onPress={() => {
+                persistNotice();
+                setStep('plan');
+              }}
+            />
+          </View>
+        </View>
       )}
-      {step === 'breathe' && <BreatheStep onNext={() => setStep('plan')} />}
+
       {step === 'plan' && (
         <PlanStep
           reasonText={reason?.text ?? null}
           selectedPlan={selectedPlan}
-          setSelectedPlan={setSelectedPlan}
+          onChoose={choosePlan}
+          onSelectLocal={setSelectedPlan}
           planAlternative={behavior.planAlternative}
           onNext={() => setStep('closure')}
         />
       )}
+
       {step === 'closure' && <ClosureStep onOutcome={finish} />}
       {step === 'help' && <HelpStep onBack={() => setStep('closure')} />}
     </ModalShell>
   );
 }
 
-function NoticeStep({ intensity, setIntensity, onNext }: { intensity: number | null; setIntensity: (n: number) => void; onNext: () => void }) {
-  const { tokens } = useTheme();
-  return (
-    <View>
-      <Text variant="headline">Şu an dürtü var</Text>
-      <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['8'], marginBottom: tokens.spacing['24'] }}>
-        Burada olduğun için iyi. Şiddetini işaretlemek istersen (opsiyonel):
-      </Text>
-      <CravingSelector value={intensity} onChange={setIntensity} />
-      <View style={{ marginTop: tokens.spacing['40'] }}>
-        <Button label="Devam et" onPress={onNext} />
-      </View>
-    </View>
-  );
-}
-
-function BreatheStep({ onNext }: { onNext: () => void }) {
-  const { colors, tokens } = useTheme();
-  const scale = useRef(new Animated.Value(1)).current;
-  const [seconds, setSeconds] = useState(30);
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(scale, { toValue: 1.25, duration: tokens.motion.breathingCycle, useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 1, duration: tokens.motion.breathingCycle, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    const interval = setInterval(() => setSeconds((s) => (s > 0 ? s - 1 : 0)), 1000);
-    return () => {
-      loop.stop();
-      clearInterval(interval);
-    };
-  }, []);
-
-  return (
-    <View style={{ alignItems: 'center' }}>
-      <Text variant="headline" style={{ textAlign: 'center' }}>Alan aç</Text>
-      <Text variant="body" color="secondary" style={{ textAlign: 'center', marginTop: tokens.spacing['8'], marginBottom: tokens.spacing['40'] }}>
-        Yavaşça nefes al. İstersen sadece gözlemle.
-      </Text>
-      <Animated.View
-        style={{
-          width: 140,
-          height: 140,
-          borderRadius: 70,
-          backgroundColor: colors.cyan + '22',
-          borderWidth: 2,
-          borderColor: colors.cyan,
-          alignItems: 'center',
-          justifyContent: 'center',
-          transform: [{ scale }],
-        }}
-      >
-        <Text variant="statSmall" tabular color="slateBlue">{seconds}</Text>
-      </Animated.View>
-      <View style={{ marginTop: tokens.spacing['40'], width: '100%', gap: tokens.spacing['12'] }}>
-        <Button label="Devam et" onPress={onNext} />
-        <Button label="Geç" variant="ghost" onPress={onNext} />
-      </View>
-    </View>
-  );
-}
+const HANDOFF_OPTIONS: { id: string; label: string; description: string; icon: IconName }[] = [
+  { id: 'wave', label: 'Dalgayı bekle', description: '3 dakika. Dürtü yükselir, zirve yapar, geçer.', icon: 'wind' },
+  { id: 'delay', label: 'Ertele', description: '2–20 dakika sonra tekrar sor.', icon: 'clock' },
+];
 
 function PlanStep({
   reasonText,
   selectedPlan,
-  setSelectedPlan,
+  onChoose,
+  onSelectLocal,
   planAlternative,
   onNext,
 }: {
   reasonText: string | null;
   selectedPlan: string | null;
-  setSelectedPlan: (id: string) => void;
+  onChoose: (id: string) => void;
+  onSelectLocal: (id: string) => void;
   planAlternative?: string;
   onNext: () => void;
 }) {
   const { colors, tokens } = useTheme();
-  const options = MICRO_PLAN_OPTIONS.filter((o) => o.id !== 'reason' || reasonText);
+  const localOptions = MICRO_PLAN_OPTIONS.filter((o) => o.id !== 'delay' && o.id !== 'breathe' && (o.id !== 'reason' || reasonText));
 
   return (
     <View>
@@ -167,49 +166,80 @@ function PlanStep({
         Kendi planın öncelikli. Birini seç, ya da kendi yolunu izle.
       </Text>
 
-      {planAlternative ? (
-        <Surface radius="lg" bordered style={{ padding: tokens.spacing['16'], marginBottom: tokens.spacing['16'] }}>
-          <Text variant="caption" color="tertiary">Senin planın</Text>
-          <Text variant="body" style={{ marginTop: tokens.spacing['4'] }}>{planAlternative}</Text>
+      {reasonText ? (
+        <Surface radius="lg" bordered style={{ padding: tokens.spacing['16'], marginBottom: tokens.spacing['16'], borderColor: colors.indigo }}>
+          <Text variant="caption" color="tertiary">
+            Senin nedenin
+          </Text>
+          <Text variant="bodyLarge" serif style={{ marginTop: tokens.spacing['4'] }}>
+            {reasonText}
+          </Text>
         </Surface>
       ) : null}
 
+      {planAlternative ? (
+        <Pressable onPress={() => onSelectLocal('own')}>
+          <Surface radius="lg" bordered style={{ padding: tokens.spacing['16'], marginBottom: tokens.spacing['16'], borderColor: selectedPlan === 'own' ? colors.indigo : colors.border, borderWidth: selectedPlan === 'own' ? 1.5 : 1 }}>
+            <Text variant="caption" color="tertiary">
+              Senin planın
+            </Text>
+            <Text variant="body" style={{ marginTop: tokens.spacing['4'] }}>
+              {planAlternative}
+            </Text>
+          </Surface>
+        </Pressable>
+      ) : null}
+
       <View style={{ gap: tokens.spacing['8'] }}>
-        {options.map((opt) => {
-          const selected = selectedPlan === opt.id;
-          return (
-            <Pressable key={opt.id} onPress={() => setSelectedPlan(opt.id)}>
-              <Surface
-                radius="md"
-                bordered
-                style={{
-                  padding: tokens.spacing['12'],
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: tokens.spacing['12'],
-                  borderColor: selected ? colors.indigo : colors.border,
-                  borderWidth: selected ? 1.5 : 1,
-                }}
-              >
-                <Icon name={opt.icon as IconName} size={20} color={selected ? colors.indigo : colors.textSecondary} />
-                <View style={{ flex: 1 }}>
-                  <Text variant="label">{opt.label}</Text>
-                  {opt.id === 'reason' && reasonText ? (
-                    <Text variant="caption" color="secondary">{reasonText}</Text>
-                  ) : (
-                    <Text variant="caption" color="secondary">{opt.description}</Text>
-                  )}
-                </View>
-              </Surface>
-            </Pressable>
-          );
-        })}
+        {HANDOFF_OPTIONS.map((opt) => (
+          <OptionRow key={opt.id} icon={opt.icon} label={opt.label} description={opt.description} selected={false} accent onPress={() => onChoose(opt.id)} />
+        ))}
+        {localOptions.map((opt) => (
+          <OptionRow
+            key={opt.id}
+            icon={opt.icon as IconName}
+            label={opt.label}
+            description={opt.id === 'reason' && reasonText ? reasonText : opt.description}
+            selected={selectedPlan === opt.id}
+            onPress={() => (opt.id === 'write' ? onChoose(opt.id) : onSelectLocal(opt.id))}
+          />
+        ))}
       </View>
 
       <View style={{ marginTop: tokens.spacing['32'] }}>
         <Button label="Devam et" onPress={onNext} />
       </View>
     </View>
+  );
+}
+
+function OptionRow({ icon, label, description, selected, accent, onPress }: { icon: IconName; label: string; description: string; selected: boolean; accent?: boolean; onPress: () => void }) {
+  const { colors, tokens } = useTheme();
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected }}>
+      <Surface
+        radius="md"
+        bordered
+        style={{
+          padding: tokens.spacing['12'],
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: tokens.spacing['12'],
+          borderColor: selected ? colors.indigo : colors.border,
+          borderWidth: selected ? 1.5 : 1,
+          backgroundColor: accent ? colors.surfaceSecondary : undefined,
+        }}
+      >
+        <Icon name={icon} size={20} color={selected || accent ? colors.indigo : colors.textSecondary} />
+        <View style={{ flex: 1 }}>
+          <Text variant="label">{label}</Text>
+          <Text variant="caption" color="secondary">
+            {description}
+          </Text>
+        </View>
+        {accent ? <Icon name="arrow-right" size={18} color={colors.textTertiary} /> : null}
+      </Surface>
+    </Pressable>
   );
 }
 
@@ -222,7 +252,7 @@ function ClosureStep({ onOutcome }: { onOutcome: (o: EventOutcome) => void }) {
         Ne olursa olsun, burada olman değerli.
       </Text>
       <View style={{ gap: tokens.spacing['12'] }}>
-        <Button label="Geçti" onPress={() => onOutcome('passed')} />
+        <Button label="Geçti" onPress={() => onOutcome('resisted')} />
         <Button label="Erteledim" variant="secondary" onPress={() => onOutcome('delayed')} />
         <Button label="Yaptım" variant="ghost" onPress={() => onOutcome('acted')} />
         <Button label="Emin değilim" variant="ghost" onPress={() => onOutcome('unsure')} />
@@ -239,6 +269,9 @@ function HelpStep({ onBack }: { onBack: () => void }) {
       <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['12'] }}>
         Bu uygulama bir kriz hizmeti değildir. Kendine veya başkasına zarar verme riski, ya da güvende kalamama hissi
         yaşıyorsan lütfen bölgendeki acil yardım hattını ara ya da güvendiğin biriyle şimdi iletişime geç.
+      </Text>
+      <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['12'] }}>
+        Türkiye: 112 Acil · 182 ALO Sağlık · Yeşilay YEDAM 115 (bağımlılık danışma hattı).
       </Text>
       <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['12'] }}>
         Yalnız kalma. Bu an geçicidir ve yardım istemek güçlü bir adımdır.

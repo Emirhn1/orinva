@@ -8,7 +8,8 @@ function rowToEntry(row: any): JournalEntry {
     createdAt: row.createdAt,
     text: row.text,
     linkedEventId: row.linkedEventId,
-    tag: row.tag,
+    tag: row.tag ?? null,
+    mood: row.mood ?? null,
   };
 }
 
@@ -26,8 +27,8 @@ export const journalRepo = {
   create(input: Omit<JournalEntry, 'id' | 'createdAt'>): JournalEntry {
     const entry: JournalEntry = { ...input, id: generateId(), createdAt: new Date().toISOString() };
     db.runSync(
-      `INSERT INTO journal_entries (id, createdAt, text, linkedEventId, tag) VALUES (?, ?, ?, ?, ?);`,
-      [entry.id, entry.createdAt, entry.text, entry.linkedEventId, entry.tag]
+      `INSERT INTO journal_entries (id, createdAt, text, linkedEventId, tag, mood) VALUES (?, ?, ?, ?, ?, ?);`,
+      [entry.id, entry.createdAt, entry.text, entry.linkedEventId, entry.tag, entry.mood]
     );
     return entry;
   },
@@ -36,7 +37,7 @@ export const journalRepo = {
     const existing = journalRepo.get(id);
     if (!existing) return;
     const next = { ...existing, ...patch };
-    db.runSync(`UPDATE journal_entries SET text=?, tag=? WHERE id=?;`, [next.text, next.tag, id]);
+    db.runSync(`UPDATE journal_entries SET text=?, tag=?, mood=? WHERE id=?;`, [next.text, next.tag, next.mood, id]);
   },
 
   remove(id: string): void {

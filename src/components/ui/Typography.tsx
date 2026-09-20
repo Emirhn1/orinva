@@ -28,11 +28,29 @@ const colorKey: Record<ColorRole, string> = {
 
 const serifFamily = Platform.select({ ios: 'New York', android: 'serif', default: undefined });
 
+/**
+ * DESIGN.md §39: text must reflow up to 130% scale without truncation. Large
+ * display/stat styles cap a little lower so hero numbers don't overflow on
+ * 200% accessibility settings; body copy is allowed to grow further.
+ */
+const maxScale: Record<Variant, number> = {
+  display: 1.3,
+  headline: 1.3,
+  title: 1.4,
+  bodyLarge: 1.6,
+  body: 1.6,
+  label: 1.5,
+  caption: 1.5,
+  statLarge: 1.2,
+  statSmall: 1.3,
+};
+
 export function Text({ variant = 'body', color = 'primary', serif = false, tabular = false, style, children, ...rest }: Props) {
   const { colors, tokens } = useTheme();
   const t = tokens.typography[variant];
   return (
     <RNText
+      maxFontSizeMultiplier={maxScale[variant]}
       style={[
         {
           fontSize: t.fontSize,

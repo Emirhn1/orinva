@@ -41,8 +41,7 @@ export function ProgressRing({ progress, size = 96, strokeWidth = 8, color, chil
           strokeDasharray={`${circumference} ${circumference}`}
           strokeDashoffset={dashOffset}
           fill="none"
-          rotation={-90}
-          origin={`${size / 2}, ${size / 2}`}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
       </Svg>
       <View style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center' }}>{children}</View>

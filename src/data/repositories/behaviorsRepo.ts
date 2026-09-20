@@ -2,6 +2,10 @@ import { db } from '@/data/db';
 import { Behavior } from '@/data/types';
 import { generateId } from '@/utils/id';
 
+function num(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+}
+
 function rowToBehavior(row: any): Behavior {
   return {
     id: row.id,
@@ -9,14 +13,20 @@ function rowToBehavior(row: any): Behavior {
     category: row.category,
     goalMode: row.goalMode,
     unit: row.unit,
-    costPerUnit: row.costPerUnit ?? undefined,
+    costPerUnit: num(row.costPerUnit),
     costCurrency: row.costCurrency ?? undefined,
+    minutesPerUnit: num(row.minutesPerUnit),
+    baselinePerDay: num(row.baselinePerDay),
+    savingsGoalLabel: row.savingsGoalLabel ?? undefined,
+    savingsGoalAmount: num(row.savingsGoalAmount),
     planAlternative: row.planAlternative ?? undefined,
     createdAt: row.createdAt,
     archived: !!row.archived,
     cleanSinceAt: row.cleanSinceAt,
   };
 }
+
+export type BehaviorInput = Omit<Behavior, 'id' | 'createdAt' | 'archived' | 'cleanSinceAt'>;
 
 export const behaviorsRepo = {
   list(): Behavior[] {
@@ -29,7 +39,7 @@ export const behaviorsRepo = {
     return row ? rowToBehavior(row) : null;
   },
 
-  create(input: Omit<Behavior, 'id' | 'createdAt' | 'archived' | 'cleanSinceAt'>): Behavior {
+  create(input: BehaviorInput): Behavior {
     const now = new Date().toISOString();
     const behavior: Behavior = {
       ...input,
@@ -39,8 +49,8 @@ export const behaviorsRepo = {
       cleanSinceAt: now,
     };
     db.runSync(
-      `INSERT INTO behaviors (id, name, category, goalMode, unit, costPerUnit, costCurrency, planAlternative, createdAt, archived, cleanSinceAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      `INSERT INTO behaviors (id, name, category, goalMode, unit, costPerUnit, costCurrency, minutesPerUnit, baselinePerDay, savingsGoalLabel, savingsGoalAmount, planAlternative, createdAt, archived, cleanSinceAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
       [
         behavior.id,
         behavior.name,
@@ -49,6 +59,10 @@ export const behaviorsRepo = {
         behavior.unit,
         behavior.costPerUnit ?? null,
         behavior.costCurrency ?? null,
+        behavior.minutesPerUnit ?? null,
+        behavior.baselinePerDay ?? null,
+        behavior.savingsGoalLabel ?? null,
+        behavior.savingsGoalAmount ?? null,
         behavior.planAlternative ?? null,
         behavior.createdAt,
         0,
@@ -58,12 +72,12 @@ export const behaviorsRepo = {
     return behavior;
   },
 
-  update(id: string, patch: Partial<Behavior>): void {
+  update(id: string, patch: Partial<Behavior>): Behavior | null {
     const existing = behaviorsRepo.get(id);
-    if (!existing) return;
+    if (!existing) return null;
     const next = { ...existing, ...patch };
     db.runSync(
-      `UPDATE behaviors SET name=?, category=?, goalMode=?, unit=?, costPerUnit=?, costCurrency=?, planAlternative=?, archived=?, cleanSinceAt=? WHERE id=?;`,
+      `UPDATE behaviors SET name=?, category=?, goalMode=?, unit=?, costPerUnit=?, costCurrency=?, minutesPerUnit=?, baselinePerDay=?, savingsGoalLabel=?, savingsGoalAmount=?, planAlternative=?, archived=?, cleanSinceAt=? WHERE id=?;`,
       [
         next.name,
         next.category,
@@ -71,19 +85,28 @@ export const behaviorsRepo = {
         next.unit,
         next.costPerUnit ?? null,
         next.costCurrency ?? null,
+        next.minutesPerUnit ?? null,
+        next.baselinePerDay ?? null,
+        next.savingsGoalLabel ?? null,
+        next.savingsGoalAmount ?? null,
         next.planAlternative ?? null,
         next.archived ? 1 : 0,
         next.cleanSinceAt,
         id,
       ]
     );
+    return next;
   },
 
-  resetCleanTimer(id: string, at: string = new Date().toISOString()): void {
+  setCleanSince(id: string, at: string): void {
     db.runSync('UPDATE behaviors SET cleanSinceAt = ? WHERE id = ?;', [at, id]);
   },
 
   archive(id: string): void {
     db.runSync('UPDATE behaviors SET archived = 1 WHERE id = ?;', [id]);
+  },
+
+  unarchive(id: string): void {
+    db.runSync('UPDATE behaviors SET archived = 0 WHERE id = ?;', [id]);
   },
 };

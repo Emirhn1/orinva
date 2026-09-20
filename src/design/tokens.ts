@@ -32,7 +32,7 @@ export const palette = {
   borderStrongLight: '#C7CCD9',
   textPrimaryLight: '#12172A',
   textSecondaryLight: '#5A6178',
-  textTertiaryLight: '#8890A3',
+  textTertiaryLight: '#667088', // 4.9:1 on #FFFFFF (was #8890A3 → 3.3:1, failed AA)
 
   backgroundDark: '#090C13',
   surfaceDark: '#121726',
@@ -42,7 +42,7 @@ export const palette = {
   borderStrongDark: '#38415C',
   textPrimaryDark: '#F0F2F8',
   textSecondaryDark: '#9AA2BC',
-  textTertiaryDark: '#6B7591',
+  textTertiaryDark: '#8A94B0', // 5.4:1 on #121726 (was #6B7591 → 3.6:1, failed AA)
 
   successBase: '#22A57C',
   successOnDark: '#3FCC9C',
@@ -124,9 +124,12 @@ export const iconSize = {
 
 export const touchTarget = {
   min: 44,
+  chip: 44,
 };
 
 export const componentHeight = {
+  /** Space screens reserve at the bottom so content clears the floating "Zor An" CTA (H1). */
+  fabClearance: 60 + 12 + 24,
   buttonPrimary: 52,
   buttonSecondary: 48,
   buttonGhost: 44,
@@ -149,6 +152,9 @@ export const motion = {
   shimmerLoop: 1200,
   breathingCycle: 1000,
   toastAutoDismiss: 3200,
+  undoWindow: 5000,
+  fabCollapse: 180,
+  chipSelect: 120,
 };
 
 export const opacity = {

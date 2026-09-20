@@ -1,17 +1,16 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Pressable } from 'react-native';
-import { useRouter } from 'expo-router';
-import { ModalShell, Text, Button, Surface, Input } from '@/components/ui';
-import { Icon, IconName } from '@/icons';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import { ModalShell, Text, Button, Surface, Input, ChipGroup, Chip } from '@/components/ui';
+import { resolveChipLabel, makeCustomChip } from '@/components/ui/ChipGroup';
+import { Icon } from '@/icons';
 import { useTheme } from '@/design/ThemeProvider';
-import { useAppStore } from '@/store/useAppStore';
+import { useAppStore, findBehaviorByName } from '@/store/useAppStore';
+import { toast } from '@/store/useToastStore';
 import { BehaviorCategory, GoalMode } from '@/data/types';
-
-const TEMPLATES: { id: BehaviorCategory; title: string; icon: IconName }[] = [
-  { id: 'nicotine', title: 'Sigara / Nikotin', icon: 'zap' },
-  { id: 'social_media', title: 'Telefon / Sosyal medya', icon: 'grid' },
-  { id: 'custom', title: 'Kendi davranışım', icon: 'edit-3' },
-];
+import { PLAN_CHIPS } from '@/content/chips';
+import { BEHAVIOR_TEMPLATES, GOAL_LABEL, unitWordFor } from '@/content/behaviors';
 
 const MODES: { id: GoalMode; title: string }[] = [
   { id: 'quit', title: 'Bırak' },
@@ -20,37 +19,97 @@ const MODES: { id: GoalMode; title: string }[] = [
   { id: 'notice', title: 'Fark et' },
 ];
 
+function parseNum(v: string): number | undefined {
+  const n = Number(v.replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+/** Create or edit a behavior. `?id=` switches to edit mode. */
 export default function BehaviorBuilderScreen() {
   const router = useRouter();
   const { colors, tokens } = useTheme();
+  const params = useLocalSearchParams<{ id?: string }>();
+  const behaviors = useAppStore((s) => s.behaviors);
   const addBehavior = useAppStore((s) => s.addBehavior);
+  const updateBehavior = useAppStore((s) => s.updateBehavior);
+  const archiveBehavior = useAppStore((s) => s.archiveBehavior);
 
-  const [category, setCategory] = useState<BehaviorCategory | null>(null);
-  const [name, setName] = useState('');
-  const [goalMode, setGoalMode] = useState<GoalMode | null>(null);
-  const [plan, setPlan] = useState('');
+  const editing = useMemo(() => behaviors.find((b) => b.id === params.id) ?? null, [behaviors, params.id]);
 
-  const displayName = category === 'custom' ? name : TEMPLATES.find((t) => t.id === category)?.title ?? '';
-  const canSave = category !== null && goalMode !== null && (category !== 'custom' || name.trim().length > 1);
+  const [category, setCategory] = useState<BehaviorCategory | null>(editing?.category ?? null);
+  const [name, setName] = useState(editing?.name ?? '');
+  const [goalMode, setGoalMode] = useState<GoalMode | null>(editing?.goalMode ?? null);
+  const [planChip, setPlanChip] = useState<string | null>(() => {
+    if (!editing?.planAlternative) return null;
+    const known = PLAN_CHIPS.find((c) => c.label === editing.planAlternative);
+    return known ? known.id : makeCustomChip(editing.planAlternative);
+  });
+  const [showEarnings, setShowEarnings] = useState(!!editing?.baselinePerDay);
+  const [baseline, setBaseline] = useState(editing?.baselinePerDay ? String(editing.baselinePerDay) : '');
+  const [cost, setCost] = useState(editing?.costPerUnit ? String(editing.costPerUnit) : '');
+  const [minutes, setMinutes] = useState(editing?.minutesPerUnit ? String(editing.minutesPerUnit) : '');
+  const [goalLabel, setGoalLabel] = useState(editing?.savingsGoalLabel ?? '');
+  const [goalAmount, setGoalAmount] = useState(editing?.savingsGoalAmount ? String(editing.savingsGoalAmount) : '');
+  const [confirmArchive, setConfirmArchive] = useState(false);
+
+  const template = BEHAVIOR_TEMPLATES.find((t) => t.id === category);
+
+  // H2 — nickname must be unique among active behaviors.
+  const nameClash = useMemo(() => {
+    const found = findBehaviorByName(name, behaviors);
+    return found && found.id !== editing?.id ? found : null;
+  }, [name, behaviors, editing]);
+
+  // Soft warning: same template + same goal already exists.
+  const similar = useMemo(
+    () => (editing ? null : behaviors.find((b) => !b.archived && b.category === category && b.goalMode === goalMode) ?? null),
+    [behaviors, category, goalMode, editing]
+  );
+
+  const canSave = category !== null && goalMode !== null && name.trim().length > 1 && !nameClash;
 
   const save = () => {
     if (!canSave || !category || !goalMode) return;
-    const behavior = addBehavior({ name: displayName, category, goalMode, unit: 'event', planAlternative: plan || undefined });
+    const planAlternative = resolveChipLabel(PLAN_CHIPS, planChip) ?? undefined;
+    const earnings = showEarnings
+      ? {
+          baselinePerDay: parseNum(baseline),
+          costPerUnit: parseNum(cost),
+          minutesPerUnit: parseNum(minutes),
+          savingsGoalLabel: goalLabel.trim() || undefined,
+          savingsGoalAmount: parseNum(goalAmount),
+          costCurrency: '₺',
+        }
+      : { baselinePerDay: undefined, costPerUnit: undefined, minutesPerUnit: undefined, savingsGoalLabel: undefined, savingsGoalAmount: undefined };
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    if (editing) {
+      updateBehavior(editing.id, { name: name.trim(), category, goalMode, planAlternative, ...earnings });
+      toast.show({ message: 'Güncellendi', tone: 'success' });
+      router.back();
+      return;
+    }
+    const behavior = addBehavior({ name: name.trim(), category, goalMode, unit: 'event', planAlternative, ...earnings });
+    toast.show({ message: `${behavior.name} eklendi`, tone: 'success' });
     router.replace({ pathname: '/(tabs)/journey/[id]', params: { id: behavior.id } });
   };
 
+  const unitWord = unitWordFor(category);
+
   return (
     <ModalShell onClose={() => router.back()}>
-      <Text variant="headline">Yeni davranış</Text>
+      <Text variant="headline">{editing ? 'Davranışı düzenle' : 'Yeni davranış'}</Text>
 
       <View style={{ marginTop: tokens.spacing['20'], gap: tokens.spacing['8'] }}>
-        {TEMPLATES.map((t) => {
+        {BEHAVIOR_TEMPLATES.map((t) => {
           const selected = category === t.id;
           return (
-            <Pressable key={t.id} onPress={() => setCategory(t.id)}>
+            <Pressable key={t.id} onPress={() => setCategory(t.id)} accessibilityRole="button" accessibilityState={{ selected }}>
               <Surface radius="lg" bordered style={{ padding: tokens.spacing['16'], flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['12'], borderColor: selected ? colors.indigo : colors.border, borderWidth: selected ? 1.5 : 1 }}>
                 <Icon name={t.icon} size={20} color={selected ? colors.indigo : colors.textSecondary} />
-                <Text variant="label" style={{ flex: 1 }}>{t.title}</Text>
+                <Text variant="label" style={{ flex: 1 }}>
+                  {t.title}
+                </Text>
                 {selected ? <Icon name="check" size={18} color={colors.indigo} /> : null}
               </Surface>
             </Pressable>
@@ -58,35 +117,106 @@ export default function BehaviorBuilderScreen() {
         })}
       </View>
 
-      {category === 'custom' ? (
-        <View style={{ marginTop: tokens.spacing['16'] }}>
-          <Input label="İsim" placeholder="Örn. Gece eski fotoğraflara bakmak" value={name} onChangeText={setName} />
+      {category ? (
+        <View style={{ marginTop: tokens.spacing['20'] }}>
+          <Input
+            label="Takma ad"
+            placeholder={template?.nicknameHint}
+            value={name}
+            onChangeText={setName}
+            maxLength={40}
+            error={nameClash ? `"${nameClash.name}" zaten var. Farklı bir ad ver.` : undefined}
+          />
         </View>
       ) : null}
 
-      <Text variant="label" color="secondary" style={{ marginTop: tokens.spacing['24'], marginBottom: tokens.spacing['8'] }}>Hedef modu</Text>
+      <Text variant="label" color="secondary" style={{ marginTop: tokens.spacing['24'], marginBottom: tokens.spacing['8'] }}>
+        Hedef modu
+      </Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing['8'] }}>
-        {MODES.map((m) => {
-          const selected = goalMode === m.id;
-          return (
-            <Pressable
-              key={m.id}
-              onPress={() => setGoalMode(m.id)}
-              style={{ paddingHorizontal: tokens.spacing['16'], height: 44, borderRadius: tokens.radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: selected ? colors.indigo : colors.surfaceSecondary }}
-            >
-              <Text variant="label" color={selected ? 'onAccent' : 'secondary'}>{m.title}</Text>
-            </Pressable>
-          );
-        })}
+        {MODES.map((m) => (
+          <Chip key={m.id} label={m.title} selected={goalMode === m.id} onPress={() => setGoalMode(m.id)} />
+        ))}
       </View>
 
-      <View style={{ marginTop: tokens.spacing['20'] }}>
-        <Input label="Zor anda denenecek plan (opsiyonel)" placeholder="Örn. Su içip 2 dakika bekleyeceğim" value={plan} onChangeText={setPlan} />
+      {similar && !nameClash ? (
+        <Surface radius="lg" bordered style={{ padding: tokens.spacing['16'], marginTop: tokens.spacing['16'], borderColor: colors.amber }}>
+          <Text variant="label">Bunun gibi bir davranışın zaten var</Text>
+          <Text variant="caption" color="secondary" style={{ marginTop: tokens.spacing['4'] }}>
+            "{similar.name}" · {GOAL_LABEL[similar.goalMode]}. Aynı şeyse ona kaydetmek daha temiz olur.
+          </Text>
+          <View style={{ marginTop: tokens.spacing['12'] }}>
+            <Button label={`"${similar.name}"e git`} variant="secondary" onPress={() => router.replace({ pathname: '/(tabs)/journey/[id]', params: { id: similar.id } })} />
+          </View>
+        </Surface>
+      ) : null}
+
+      <View style={{ marginTop: tokens.spacing['24'] }}>
+        <ChipGroup mode="single" label="Zor anda denenecek plan (opsiyonel)" options={PLAN_CHIPS} namespace="plan" value={planChip} onChange={setPlanChip} allowCustom tone="success" />
+      </View>
+
+      <View style={{ marginTop: tokens.spacing['24'] }}>
+        {!showEarnings ? (
+          <Pressable onPress={() => setShowEarnings(true)} accessibilityRole="button">
+            <Surface radius="lg" bordered style={{ padding: tokens.spacing['16'], flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['12'] }}>
+              <Icon name="dollar-sign" size={20} color={colors.textSecondary} />
+              <View style={{ flex: 1 }}>
+                <Text variant="label">Kazanç sayacını aç</Text>
+                <Text variant="caption" color="secondary">
+                  İçilmeyen adet, biriken para, geri kazanılan süre.
+                </Text>
+              </View>
+              <Icon name="chevron-right" size={18} color={colors.textTertiary} />
+            </Surface>
+          </Pressable>
+        ) : (
+          <Surface radius="lg" bordered style={{ padding: tokens.spacing['16'], gap: tokens.spacing['12'] }}>
+            <Text variant="label">Kazanç sayacı</Text>
+            <Input label={`Önceden günde kaç ${unitWord}?`} placeholder="Örn. 15" value={baseline} onChangeText={setBaseline} keyboardType="decimal-pad" />
+            <Input label={`Bir ${unitWord} kaç ₺?`} placeholder="Örn. 4" value={cost} onChangeText={setCost} keyboardType="decimal-pad" />
+            <Input label={`Bir ${unitWord} kaç dakika?`} placeholder="Örn. 5" value={minutes} onChangeText={setMinutes} keyboardType="decimal-pad" />
+            <View style={{ flexDirection: 'row', gap: tokens.spacing['8'] }}>
+              <View style={{ flex: 2 }}>
+                <Input label="Birikeni bağla (opsiyonel)" placeholder="Örn. Kulaklık" value={goalLabel} onChangeText={setGoalLabel} maxLength={30} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Input label="Hedef ₺" placeholder="1500" value={goalAmount} onChangeText={setGoalAmount} keyboardType="decimal-pad" />
+              </View>
+            </View>
+            <Text variant="caption" color="tertiary" onPress={() => setShowEarnings(false)} accessibilityRole="button">
+              Sayacı kapat
+            </Text>
+          </Surface>
+        )}
       </View>
 
       <View style={{ marginTop: tokens.spacing['32'] }}>
-        <Button label="Kaydet ve başla" disabled={!canSave} onPress={save} />
+        <Button label={editing ? 'Kaydet' : 'Kaydet ve başla'} disabled={!canSave} onPress={save} />
       </View>
+
+      {editing ? (
+        <View style={{ marginTop: tokens.spacing['24'] }}>
+          {!confirmArchive ? (
+            <Button label="Bu davranışı arşivle" variant="critical" onPress={() => setConfirmArchive(true)} />
+          ) : (
+            <View style={{ gap: tokens.spacing['8'] }}>
+              <Text variant="caption" color="secondary">
+                Kayıtların silinmez; davranış listeden kalkar. Sen sekmesinden geri açabilirsin.
+              </Text>
+              <Button
+                label="Evet, arşivle"
+                variant="critical"
+                onPress={() => {
+                  archiveBehavior(editing.id);
+                  toast.show({ message: 'Arşivlendi', icon: 'info' });
+                  router.replace('/(tabs)/journey');
+                }}
+              />
+              <Button label="Vazgeç" variant="ghost" onPress={() => setConfirmArchive(false)} />
+            </View>
+          )}
+        </View>
+      ) : null}
     </ModalShell>
   );
 }

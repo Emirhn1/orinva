@@ -6,33 +6,51 @@ export type BehaviorUnit = 'event' | 'minutes' | 'count' | 'yesno';
 
 export interface Behavior {
   id: string;
+  /** User-facing nickname — required ("Sabah sigarası", "Instagram akşam"). */
   name: string;
   category: BehaviorCategory;
   goalMode: GoalMode;
   unit: BehaviorUnit;
+  /** Kazanç sayacı: cost per unit (₺), minutes per unit and the pre-app baseline per day. */
   costPerUnit?: number;
   costCurrency?: string;
+  minutesPerUnit?: number;
+  baselinePerDay?: number;
+  savingsGoalLabel?: string;
+  savingsGoalAmount?: number;
   planAlternative?: string;
   createdAt: string; // ISO
   archived: boolean;
   cleanSinceAt: string; // ISO — reset whenever an "acted" outcome is logged
 }
 
-export type EventKind = 'urge' | 'acted' | 'resisted';
-export type EventOutcome = 'passed' | 'delayed' | 'acted' | 'unsure' | null;
+/**
+ * H5 — the model is "event = urge, outcome = what happened".
+ * An event is always an urge; the outcome may be filled in later (null = still open).
+ * `resisted` replaces the old `passed` label.
+ */
+export type EventOutcome = 'resisted' | 'delayed' | 'acted' | 'unsure' | null;
+
+/** Which entry point produced the record — lets us measure what actually gets used. */
+export type EventSource = 'app' | 'today' | 'craving_help' | 'wave' | 'delay_timer' | 'onboarding' | 'widget';
 
 export interface UrgeEvent {
   id: string;
   behaviorId: string;
-  kind: EventKind;
   startedAt: string; // ISO
   endedAt: string | null;
-  intensity: number | null; // 1-5
+  intensity: number | null; // 1-5, at the moment of the urge
+  intensityAfter: number | null; // 1-5, measured after wave mode / delay timer
   mood: string | null;
-  contextTags: string[];
+  triggers: string[];
+  location: string | null;
+  company: string | null;
   note: string | null;
   outcome: EventOutcome;
+  outcomeUpdatedAt: string | null;
+  delaySeconds: number | null; // how long the user delayed before deciding
   helpedByPlan: string | null; // which micro-intervention helped, free label
+  source: EventSource;
 }
 
 export interface JournalEntry {
@@ -41,6 +59,7 @@ export interface JournalEntry {
   text: string;
   linkedEventId: string | null;
   tag: string | null;
+  mood: string | null;
 }
 
 export type ReasonType = 'reason' | 'future_self';
@@ -76,6 +95,7 @@ export interface AppSettings {
   appLockEnabled: boolean;
   streakRingEnabled: boolean;
   onboardingCompleted: boolean;
+  displayName: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -84,4 +104,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   appLockEnabled: false,
   streakRingEnabled: true,
   onboardingCompleted: false,
+  displayName: '',
 };
+
+/** Aggregated chip usage counts, keyed by chip id — drives the "most used first" ordering. */
+export type ChipUsage = Record<string, number>;

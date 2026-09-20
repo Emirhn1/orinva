@@ -14,7 +14,7 @@ export default function NotificationsScreen() {
         <IconButton name="chevron-left" accessibilityLabel="Geri" onPress={() => router.back()} />
         <Text variant="title">Bildirimler</Text>
       </View>
-      <EmptyState icon="bell" title="Henüz bildirim yok" description="Bildirim ayarlarını Sen sekmesinden düzenleyebilirsin." />
+      <EmptyState icon="bell" title="Henüz bildirim yok" description="Günün sözü ve nazik hatırlatmalar bir sonraki sürümde." actionLabel="Bildirim ayarları" onAction={() => router.push('/(tabs)/you')} />
     </ScreenContainer>
   );
 }

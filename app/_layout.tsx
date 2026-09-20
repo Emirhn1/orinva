@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider, useTheme } from '@/design/ThemeProvider';
 import { useAppStore } from '@/store/useAppStore';
+import { ToastHost } from '@/components/ui';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -27,12 +28,16 @@ function RootNavigator() {
         <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="craving-help" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="wave-mode" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
+        <Stack.Screen name="delay-timer" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="relapse-recovery" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
         <Stack.Screen name="behavior-builder" options={{ presentation: 'modal' }} />
         <Stack.Screen name="daily-checkin" options={{ presentation: 'transparentModal', animation: 'fade' }} />
         <Stack.Screen name="quick-log" options={{ presentation: 'transparentModal', animation: 'fade' }} />
+        <Stack.Screen name="event-detail" options={{ presentation: 'transparentModal', animation: 'fade' }} />
         <Stack.Screen name="milestone-celebration" options={{ presentation: 'transparentModal', animation: 'fade' }} />
       </Stack>
+      <ToastHost />
     </View>
   );
 }

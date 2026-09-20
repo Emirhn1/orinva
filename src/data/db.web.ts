@@ -34,6 +34,10 @@ function runStatement(rawStatement: string) {
 
   if (/^PRAGMA/i.test(stmt)) return;
 
+  // Migrations are SQLite-only concerns; the in-memory web engine is schemaless.
+  if (/^ALTER TABLE/i.test(stmt)) return;
+  if (/^UPDATE\s+\w+\s+SET/i.test(stmt)) return;
+
   if ((m = stmt.match(/^CREATE TABLE IF NOT EXISTS\s+(\w+)/i))) {
     ensureTable(m[1]);
     return;
@@ -71,6 +75,9 @@ function execSync(sql: string) {
 }
 
 function selectRows(sql: string, params: any[] = []): Row[] {
+  // Schema introspection queries used by the native migration path — nothing to report here.
+  if (/pragma_table_info|sqlite_master/i.test(sql)) return [];
+
   const m = sql.match(
     /^SELECT\s+(?:\*|[\w,\s]+)\s+FROM\s+(\w+)(?:\s+WHERE\s+(\w+)\s*=\s*\?)?(?:\s+ORDER BY\s+(\w+)\s+(ASC|DESC))?\s*;?$/i
   );
@@ -152,6 +159,7 @@ export function wipeAllTables() {
 export function exportAllData() {
   return {
     exportedAt: new Date().toISOString(),
+    schemaVersion: 2,
     behaviors: Array.from(ensureTable('behaviors').values()),
     events: Array.from(ensureTable('events').values()),
     journalEntries: Array.from(ensureTable('journal_entries').values()),

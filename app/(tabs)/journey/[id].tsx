@@ -1,108 +1,170 @@
 import React, { useMemo } from 'react';
-import { View } from 'react-native';
+import { View, Pressable } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ScreenContainer, Text, Card, IconButton, Metric, SectionHeader, EmptyState, Badge } from '@/components/ui';
+import { ScreenContainer, Text, Card, IconButton, SectionHeader, EmptyState, ProgressRing, OutcomeBadge, Button, Chip } from '@/components/ui';
+import { resolveChipLabel } from '@/components/ui/ChipGroup';
+import { JourneyAnalytics } from '@/components/journey/JourneyAnalytics';
+import { Icon } from '@/icons';
 import { useTheme } from '@/design/ThemeProvider';
 import { useAppStore } from '@/store/useAppStore';
-import { cleanDuration } from '@/utils/journey';
-import { formatRelativeTime } from '@/utils/date';
-
-const OUTCOME_LABEL: Record<string, string> = {
-  passed: 'Geçti',
-  delayed: 'Erteledi',
-  acted: 'Yaptı',
-  unsure: 'Emin değil',
-};
+import { cleanDuration, milestoneProgress, reachedMilestones } from '@/utils/journey';
+import { formatRelativeTime, formatDuration, formatRemaining } from '@/utils/date';
+import { useNow } from '@/utils/useNow';
+import { TRIGGER_CHIPS } from '@/content/chips';
+import { GOAL_LABEL } from '@/content/behaviors';
 
 export default function BehaviorDetailScreen() {
   const router = useRouter();
   const { colors, tokens } = useTheme();
+  const now = useNow(60_000);
   const { id } = useLocalSearchParams<{ id: string }>();
   const behaviors = useAppStore((s) => s.behaviors);
   const allEvents = useAppStore((s) => s.events);
   const allReasons = useAppStore((s) => s.reasons);
-  const archiveBehavior = useAppStore((s) => s.archiveBehavior);
+  const unarchiveBehavior = useAppStore((s) => s.unarchiveBehavior);
 
   const events = useMemo(() => allEvents.filter((e) => e.behaviorId === id), [allEvents, id]);
-  const reasons = useMemo(() => allReasons.filter((r) => r.behaviorId === id), [allReasons, id]);
+  const reasons = useMemo(() => allReasons.filter((r) => r.behaviorId === id || r.behaviorId === null), [allReasons, id]);
   const behavior = behaviors.find((b) => b.id === id);
+
   if (!behavior) {
     return (
       <ScreenContainer>
-        <EmptyState icon="compass" title="Davranış bulunamadı" />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['12'], marginTop: tokens.spacing['8'] }}>
+          <IconButton name="chevron-left" accessibilityLabel="Geri" onPress={() => router.back()} />
+        </View>
+        <EmptyState icon="compass" title="Davranış bulunamadı" actionLabel="Yolculuğa dön" onAction={() => router.replace('/(tabs)/journey')} />
       </ScreenContainer>
     );
   }
 
-  const d = cleanDuration(behavior);
-  const saved = behavior.costPerUnit ? (d.totalHours / 24) * behavior.costPerUnit : null;
+  const d = cleanDuration(behavior, now);
+  const ms = milestoneProgress(d.totalHours);
+  const reached = reachedMilestones(d.totalHours);
 
   return (
     <ScreenContainer>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['12'], marginTop: tokens.spacing['8'], marginBottom: tokens.spacing['20'] }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['12'], marginTop: tokens.spacing['8'], marginBottom: tokens.spacing['16'] }}>
         <IconButton name="chevron-left" accessibilityLabel="Geri" onPress={() => router.back()} />
-        <Text variant="title">{behavior.name}</Text>
+        <Text variant="title" numberOfLines={1} style={{ flex: 1 }}>
+          {behavior.name}
+        </Text>
+        <IconButton name="edit-3" accessibilityLabel="Düzenle" onPress={() => router.push({ pathname: '/behavior-builder', params: { id: behavior.id } })} />
       </View>
 
+      {behavior.archived ? (
+        <Card padded style={{ marginBottom: tokens.spacing['16'] }}>
+          <Text variant="label">Bu davranış arşivde</Text>
+          <View style={{ marginTop: tokens.spacing['12'] }}>
+            <Button label="Arşivden çıkar" variant="secondary" onPress={() => unarchiveBehavior(behavior.id)} />
+          </View>
+        </Card>
+      ) : null}
+
       <Card hero>
-        <Text variant="statLarge" tabular>{d.days}</Text>
-        <Text variant="caption" color="tertiary">gün temiz · {d.hours} sa {d.minutes} dk</Text>
-        <View style={{ flexDirection: 'row', gap: tokens.spacing['32'], marginTop: tokens.spacing['20'] }}>
-          {saved !== null ? <Metric value={`~${Math.round(saved)} ${behavior.costCurrency ?? '₺'}`} label="tasarruf" /> : null}
-          <Metric value={String(events.length)} label="toplam kayıt" />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['20'] }}>
+          <ProgressRing progress={ms.progress} size={104} color={colors.cyan}>
+            <Text variant="statLarge" tabular style={{ fontSize: 32, lineHeight: 34 }}>
+              {d.days}
+            </Text>
+            <Text variant="caption" color="tertiary">
+              gün
+            </Text>
+          </ProgressRing>
+          <View style={{ flex: 1 }}>
+            <Text variant="body" tabular>
+              {formatDuration(d.totalMinutes, 'long')}
+            </Text>
+            <Text variant="caption" color="tertiary" style={{ marginTop: tokens.spacing['4'] }}>
+              {GOAL_LABEL[behavior.goalMode]}
+            </Text>
+            {ms.next ? (
+              <Text variant="caption" color="secondary" style={{ marginTop: tokens.spacing['8'] }} tabular>
+                {ms.next.label} için {formatRemaining(ms.remainingMinutes)}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+        {reached.length > 0 ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing['8'], marginTop: tokens.spacing['16'] }}>
+            {reached.map((m) => (
+              <Chip key={m.label} label={m.label} compact selected tone="amber" />
+            ))}
+          </View>
+        ) : null}
+        <View style={{ flexDirection: 'row', gap: tokens.spacing['12'], marginTop: tokens.spacing['20'] }}>
+          <View style={{ flex: 1 }}>
+            <Button label="Dürtü geldi" variant="secondary" onPress={() => router.push({ pathname: '/quick-log', params: { behaviorId: behavior.id } })} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button label="Direndim" variant="ghost" onPress={() => router.push({ pathname: '/quick-log', params: { behaviorId: behavior.id, outcome: 'resisted' } })} />
+          </View>
         </View>
       </Card>
 
-      {behavior.planAlternative ? (
+      {behavior.planAlternative || reasons.length > 0 ? (
         <Card padded style={{ marginTop: tokens.spacing['16'] }}>
-          <SectionHeader title="Planın" />
-          <Text variant="body" color="secondary">{behavior.planAlternative}</Text>
+          {behavior.planAlternative ? (
+            <View>
+              <Text variant="caption" color="tertiary">
+                Zor anda planın
+              </Text>
+              <Text variant="body" style={{ marginTop: tokens.spacing['4'] }}>
+                {behavior.planAlternative}
+              </Text>
+            </View>
+          ) : null}
+          {reasons.length > 0 ? (
+            <View style={{ marginTop: behavior.planAlternative ? tokens.spacing['16'] : 0 }}>
+              <Text variant="caption" color="tertiary">
+                Nedenlerin
+              </Text>
+              {reasons.slice(0, 3).map((r) => (
+                <Text key={r.id} variant="body" serif style={{ marginTop: tokens.spacing['4'] }}>
+                  {r.text}
+                </Text>
+              ))}
+            </View>
+          ) : null}
         </Card>
       ) : null}
 
-      {reasons.length > 0 ? (
-        <Card padded style={{ marginTop: tokens.spacing['16'] }}>
-          <SectionHeader title="Nedenlerin" />
-          {reasons.map((r) => (
-            <Text key={r.id} variant="body" color="secondary" style={{ marginBottom: tokens.spacing['8'] }}>
-              {r.text}
-            </Text>
-          ))}
-        </Card>
-      ) : null}
+      <View style={{ marginTop: tokens.spacing['16'] }}>
+        <JourneyAnalytics events={events} behaviors={[behavior]} now={now} onLogPress={() => router.push({ pathname: '/quick-log', params: { behaviorId: behavior.id } })} />
+      </View>
 
       <View style={{ marginTop: tokens.spacing['24'] }}>
         <SectionHeader title="Geçmiş" />
         {events.length === 0 ? (
-          <EmptyState icon="clock" title="Henüz kayıt yok" />
+          <Card padded>
+            <EmptyState icon="clock" title="Henüz kayıt yok" description="İlk kaydın buraya gelecek." actionLabel="Dürtü kaydet" onAction={() => router.push({ pathname: '/quick-log', params: { behaviorId: behavior.id } })} />
+          </Card>
         ) : (
           <View style={{ gap: tokens.spacing['8'] }}>
-            {events.slice(0, 20).map((e) => (
-              <Card key={e.id} padded>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <View>
-                    <Text variant="label">{KIND_LABEL[e.kind]}</Text>
-                    <Text variant="caption" color="tertiary">{formatRelativeTime(e.startedAt)}</Text>
+            {events.slice(0, 30).map((e) => (
+              <Pressable key={e.id} onPress={() => router.push({ pathname: '/event-detail', params: { id: e.id } })} accessibilityRole="button">
+                <Card padded>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing['12'] }}>
+                    <View style={{ flex: 1 }}>
+                      <Text variant="label">
+                        {formatRelativeTime(e.startedAt)}
+                        {e.intensity ? ` · şiddet ${e.intensity}` : ''}
+                      </Text>
+                      {e.triggers.length ? (
+                        <Text variant="caption" color="tertiary" numberOfLines={1} style={{ marginTop: tokens.spacing['4'] }}>
+                          {e.triggers.map((t) => resolveChipLabel(TRIGGER_CHIPS, t)).join(' · ')}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <OutcomeBadge outcome={e.outcome} />
+                    <Icon name="chevron-right" size={16} color={colors.textTertiary} />
                   </View>
-                  {e.outcome ? <Badge label={OUTCOME_LABEL[e.outcome] ?? e.outcome} tone={e.outcome === 'acted' ? 'terracotta' : 'success'} /> : null}
-                </View>
-              </Card>
+                </Card>
+              </Pressable>
             ))}
           </View>
         )}
       </View>
-
-      <View style={{ marginTop: tokens.spacing['24'] }}>
-        <Text variant="caption" color="tertiary" onPress={() => archiveBehavior(behavior.id)}>
-          Bu davranışı arşivle
-        </Text>
-      </View>
     </ScreenContainer>
   );
 }
-
-const KIND_LABEL: Record<string, string> = {
-  urge: 'Dürtü',
-  acted: 'Yaptım',
-  resisted: 'Direndim',
-};
