@@ -5,10 +5,10 @@ import { ScreenContainer, Text, Card, Button, IconButton, EmptyState, Surface, O
 import { Icon } from '@/icons';
 import { useTheme } from '@/design/ThemeProvider';
 import { useAppStore, checkMilestonesForBehavior } from '@/store/useAppStore';
-import { cleanDuration, computeEarnings, computeActedStats, actedSeries } from '@/utils/journey';
+import { cleanDuration, computeEarnings, computeActedStats, actedSeries, eventsInWindow, computeResistRate, computeHelpedByPlanDistribution } from '@/utils/journey';
 import { formatRelativeTime, timeOfDayGreeting, todayKey, formatDuration, formatMoney, formatMinutesHuman, dayKey } from '@/utils/date';
 import { useNow } from '@/utils/useNow';
-import { questionForDate } from '@/content/library';
+import { questionForDate, planLabel } from '@/content/library';
 import { Quote } from '@/content/quotes';
 import { Behavior } from '@/data/types';
 import { behaviorTypeLabel } from '@/content/behaviors';
@@ -37,6 +37,8 @@ export default function TodayScreen() {
   const quoteOfDay = useAppStore((s) => s.quoteOfDay);
   const quoteMeta = useAppStore((s) => s.quoteMeta);
   const toggleFavoriteQuote = useAppStore((s) => s.toggleFavoriteQuote);
+  const focusId = useAppStore((s) => s.focusBehaviorId);
+  const setFocusId = useAppStore((s) => s.setFocusBehavior);
   const [quote, setQuote] = useState<Quote | null>(null);
 
   // Picked once per local day (stored), never during render.
@@ -49,7 +51,7 @@ export default function TodayScreen() {
   const behaviorIds = useMemo(() => behaviors.map((b) => b.id).join(','), [behaviors]);
 
   // H14 — a focus card + the rest in a strip. Focus = the behavior with the most recent activity, else the first.
-  const [focusId, setFocusId] = useState<string | null>(null);
+  // Persisted in the store (not local state) so the widget can show the same focus the user last picked here.
   const focus: Behavior | null = useMemo(() => {
     if (!behaviors.length) return null;
     const chosen = behaviors.find((b) => b.id === focusId);
@@ -103,6 +105,13 @@ export default function TodayScreen() {
   const focusColor = colors[focus.color];
   const todayActedEvents = todayEvents.filter((event) => event.behaviorId === focus.id && event.outcome === 'acted');
 
+  // Short, local weekly summary — just enough to glance at without opening Journey.
+  const focusEvents = events.filter((e) => e.behaviorId === focus.id);
+  const weekEvents = eventsInWindow(focusEvents, 7, now);
+  const weekRate = computeResistRate(weekEvents);
+  const weekHelped = computeHelpedByPlanDistribution(weekEvents);
+  const topHelper = weekHelped.rows[0];
+
   const logActed = () => commitActed(router, focus, { source: 'today' });
 
   return (
@@ -117,8 +126,6 @@ export default function TodayScreen() {
       <Text variant="caption" color="tertiary" style={{ marginBottom: tokens.spacing['16'] }}>
         {now.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })}
       </Text>
-
-      {quote ? <QuoteCarousel featured={quote} meta={quoteMeta} onFavorite={toggleFavoriteQuote} /> : null}
 
       {focus.needsNameReview ? (
         <Surface radius="lg" bordered style={{ padding: tokens.spacing['16'], marginBottom: tokens.spacing['12'], borderColor: colors.indigo }}>
@@ -149,12 +156,41 @@ export default function TodayScreen() {
         </Pressable>
 
         {earnings.unitsAvoided !== null ? (
-          <View style={{ flexDirection: 'row', gap: tokens.spacing['20'], marginTop: tokens.spacing['20'], flexWrap: 'wrap' }}>
-            <Stat value={`${Math.round(earnings.unitsAvoided)}`} label="içilmedi / yapılmadı" />
-            {earnings.moneySaved !== null ? <Stat value={formatMoney(earnings.moneySaved, focus.costCurrency)} label="biriken" /> : null}
-            {earnings.minutesRecovered !== null ? <Stat value={formatMinutesHuman(earnings.minutesRecovered)} label="geri kazanılan" /> : null}
+          <View style={{ marginTop: tokens.spacing['20'] }}>
+            <View style={{ flexDirection: 'row', gap: tokens.spacing['20'], flexWrap: 'wrap' }}>
+              <Stat value={`${Math.round(earnings.unitsAvoided)}`} label="içilmedi / yapılmadı" />
+              {earnings.moneySaved !== null ? <Stat value={formatMoney(earnings.moneySaved, focus.costCurrency)} label="tahmini biriken" /> : null}
+              {earnings.minutesRecovered !== null ? <Stat value={formatMinutesHuman(earnings.minutesRecovered)} label="geri kazanılan" /> : null}
+            </View>
+            {earnings.moneySaved !== null ? (
+              <Text variant="caption" color="tertiary" style={{ marginTop: tokens.spacing['8'] }}>
+                Önceki günlük ortalamana göre tahmin — kesin kazanılan para değil.
+              </Text>
+            ) : null}
+            {earnings.goalProgress !== null && focus.savingsGoalLabel ? (
+              <View style={{ marginTop: tokens.spacing['12'] }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: tokens.spacing['4'] }}>
+                  <Text variant="caption" color="secondary">Hedef: {focus.savingsGoalLabel}</Text>
+                  <Text variant="caption" color="secondary" tabular>%{Math.round(earnings.goalProgress * 100)}</Text>
+                </View>
+                <View style={{ height: 6, borderRadius: tokens.radius.pill, backgroundColor: colors.surfaceSecondary, overflow: 'hidden' }}>
+                  <View style={{ width: `${earnings.goalProgress * 100}%`, height: '100%', backgroundColor: colors.bronze, borderRadius: tokens.radius.pill }} />
+                </View>
+              </View>
+            ) : null}
           </View>
-        ) : null}
+        ) : (
+          <Pressable
+            onPress={() => router.push({ pathname: '/behavior-builder', params: { id: focus.id } })}
+            accessibilityRole="button"
+            style={{ marginTop: tokens.spacing['20'], flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['8'] }}
+          >
+            <Icon name="dollar-sign" size={16} color={colors.textTertiary} />
+            <Text variant="caption" color="indigo" style={{ flex: 1 }}>
+              Kazanç sayacını aç — tahmini birikimini gör
+            </Text>
+          </Pressable>
+        )}
 
         <View style={{ marginTop: tokens.spacing['16'], paddingTop: tokens.spacing['16'], borderTopWidth: 1, borderTopColor: colors.border }}>
           <Text variant="caption" color="tertiary">Bugün {focus.verbDid.toLocaleLowerCase('tr-TR')} kaydı</Text>
@@ -219,6 +255,9 @@ export default function TodayScreen() {
         </View>
       ) : null}
 
+      {/* Progress and today's action come first; the quote is contextual support, placed lower. */}
+      {quote ? <QuoteCarousel featured={quote} meta={quoteMeta} onFavorite={toggleFavoriteQuote} /> : null}
+
       {/* Today summary — immediate feedback for the data you gave */}
       {todayEvents.length > 0 ? (
         <Card padded style={{ marginTop: tokens.spacing['16'] }}>
@@ -242,6 +281,26 @@ export default function TodayScreen() {
               <Icon name="chevron-right" size={16} color={colors.textTertiary} />
             </Pressable>
           ) : null}
+        </Card>
+      ) : null}
+
+      {/* Kısa haftalık özet — same rule-based counting as Yolculuk, just glanceable from Bugün. */}
+      {weekEvents.length > 0 ? (
+        <Card padded style={{ marginTop: tokens.spacing['16'] }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text variant="label">Bu hafta</Text>
+            <Text variant="label" color="indigo" onPress={() => router.push({ pathname: '/(tabs)/journey/[id]', params: { id: focus.id } })} accessibilityRole="button">
+              Detaylar
+            </Text>
+          </View>
+          <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['4'] }}>
+            {weekEvents.length} istek{weekRate.closed > 0 ? `, ${weekRate.resisted}'inde direndin ya da erteledin` : ''}.
+          </Text>
+          <Text variant="caption" color="tertiary" style={{ marginTop: tokens.spacing['4'] }}>
+            {topHelper
+              ? `Bu hafta en çok yardımcı olan: ${planLabel(topHelper.id)}.`
+              : 'Hangi yöntemin yardımcı olduğunu görmek için yeterli veri henüz yok.'}
+          </Text>
         </Card>
       ) : null}
 

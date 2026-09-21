@@ -7,7 +7,7 @@ const MIGRATION_BACKUP_NAME = 'orinva-mobile-v1.migration-backup.db';
 
 export const db = SQLite.openDatabaseSync(DATABASE_NAME);
 
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 function hasColumn(table: string, column: string): boolean {
   const row = db.getFirstSync<{ cnt: number }>(
@@ -195,6 +195,14 @@ function migrateToV7() {
   }
 }
 
+/** Optional guided-reflection fields on journal entries, plus a draft flag so a reflection can be saved and continued later. */
+function migrateToV8() {
+  addColumnIfMissing('journal_entries', 'situation', 'TEXT');
+  addColumnIfMissing('journal_entries', 'thought', 'TEXT');
+  addColumnIfMissing('journal_entries', 'reframe', 'TEXT');
+  addColumnIfMissing('journal_entries', 'isDraft', 'INTEGER NOT NULL DEFAULT 0');
+}
+
 function verbsForCategory(category: string): { urge: string; resist: string; did: string } {
   switch (category) {
     case 'social_media':
@@ -266,6 +274,7 @@ const MIGRATIONS: Record<number, () => void> = {
   5: migrateToV5,
   6: migrateToV6,
   7: migrateToV7,
+  8: migrateToV8,
 };
 
 function currentSchemaVersion(): number {

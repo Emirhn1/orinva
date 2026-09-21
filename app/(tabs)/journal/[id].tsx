@@ -36,7 +36,17 @@ export default function JournalEntryDetail() {
       icon: 'refresh-cw',
       actionLabel: 'Geri al',
       durationMs: tokens.motion.undoWindow,
-      onAction: () => addJournalEntry({ text: snapshot.text, linkedEventId: snapshot.linkedEventId, tag: snapshot.tag, mood: snapshot.mood }),
+      onAction: () =>
+        addJournalEntry({
+          text: snapshot.text,
+          linkedEventId: snapshot.linkedEventId,
+          tag: snapshot.tag,
+          mood: snapshot.mood,
+          situation: snapshot.situation,
+          thought: snapshot.thought,
+          reframe: snapshot.reframe,
+          isDraft: snapshot.isDraft,
+        }),
     });
     router.back();
   };
@@ -52,9 +62,17 @@ export default function JournalEntryDetail() {
       <View style={{ flexDirection: 'row', gap: tokens.spacing['8'], marginTop: tokens.spacing['12'], flexWrap: 'wrap' }}>
         {entry.tag ? <Chip compact label={resolveChipLabel(JOURNAL_TAG_CHIPS, entry.tag) ?? entry.tag} selected tone="violet" /> : null}
         {entry.mood ? <Chip compact label={resolveChipLabel(MOOD_CHIPS, entry.mood) ?? entry.mood} /> : null}
+        {entry.isDraft ? <Chip compact label="Taslak" tone="amber" /> : null}
       </View>
+
+      {entry.isDraft ? (
+        <View style={{ marginTop: tokens.spacing['20'] }}>
+          <Button label="Devam et" onPress={() => router.push({ pathname: '/(tabs)/journal/new', params: { id: entry.id } })} />
+        </View>
+      ) : null}
+
       <Text variant="bodyLarge" style={{ marginTop: tokens.spacing['20'] }}>
-        {entry.text}
+        {entry.text || 'Henüz içerik eklenmedi.'}
       </Text>
       {entry.linkedEventId ? (
         <Text variant="label" color="indigo" style={{ marginTop: tokens.spacing['20'] }} onPress={() => router.push({ pathname: '/event-detail', params: { id: entry.linkedEventId! } })} accessibilityRole="button">

@@ -1,0 +1,10 @@
+{
+  "name": "orinva-widget",
+  "version": "1.0.0",
+  "description": "ORINVA's Android home-screen widget — local Expo module (Android only; iOS uses expo-widgets).",
+  "main": "index.ts",
+  "app.plugin.js": "app.plugin.js",
+  "peerDependencies": {
+    "expo": "*"
+  }
+}

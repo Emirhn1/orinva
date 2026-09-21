@@ -1,12 +1,15 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, Switch } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ScreenContainer, Text, Card, IconButton } from '@/components/ui';
 import { useTheme } from '@/design/ThemeProvider';
+import { useAppStore } from '@/store/useAppStore';
 
 export default function PrivacyScreen() {
   const router = useRouter();
-  const { tokens } = useTheme();
+  const { colors, tokens } = useTheme();
+  const settings = useAppStore((s) => s.settings);
+  const updateSetting = useAppStore((s) => s.updateSetting);
 
   return (
     <ScreenContainer>
@@ -36,6 +39,23 @@ export default function PrivacyScreen() {
         <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['8'] }}>
           Bu sürümde AI ve bulut senkronu kapalıdır. İleride açılırsa, ayrı ve geri alınabilir bir onay isteyeceğiz.
         </Text>
+      </Card>
+
+      <Card padded style={{ marginTop: tokens.spacing['16'] }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ flex: 1, paddingRight: tokens.spacing['12'] }}>
+            <Text variant="label">Kilit ekranında ayrıntı göster</Text>
+            <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['8'] }}>
+              Kapalıyken kilit ekranı widget'ı davranış adını, kayma bilgisini ve ilerlemeni göstermez — sadece genel bir simge
+              görünür. Açarsan, telefonunu kilitliyken de bunları göreceğini bil.
+            </Text>
+          </View>
+          <Switch
+            value={settings.widgetSensitiveContentVisible}
+            onValueChange={(v) => updateSetting('widgetSensitiveContentVisible', v)}
+            trackColor={{ true: colors.indigo }}
+          />
+        </View>
       </Card>
     </ScreenContainer>
   );

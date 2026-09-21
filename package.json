@@ -5,6 +5,7 @@
   "dependencies": {
     "@expo-google-fonts/lora": "^0.4.2",
     "@expo/metro-runtime": "~57.0.16",
+    "@expo/ui": "~57.0.19",
     "@expo/vector-icons": "^15.0.2",
     "date-fns": "^4.4.0",
     "expo": "~57.0.24",
@@ -23,6 +24,8 @@
     "expo-sqlite": "~57.0.3",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.4",
+    "expo-widgets": "~57.0.20",
+    "orinva-widget": "file:./modules/orinva-widget",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",

@@ -163,7 +163,7 @@ export function wipeAllTables() {
 export function exportAllData() {
   return {
     exportedAt: new Date().toISOString(),
-    schemaVersion: 7,
+    schemaVersion: 8,
     behaviors: Array.from(ensureTable('behaviors').values()),
     events: Array.from(ensureTable('events').values()),
     journalEntries: Array.from(ensureTable('journal_entries').values()),

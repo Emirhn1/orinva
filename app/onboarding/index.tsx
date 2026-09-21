@@ -24,7 +24,7 @@ export default function OnboardingWelcome() {
           </View>
           <Text variant="display">ORINVA</Text>
           <Text variant="bodyLarge" color="secondary">
-            Kayıtların önce cihazında kalır. Hesap açmadan başlayabilirsin.
+            Kayıtların bu cihazda tutulur. Hesap açmadan başlayabilirsin.
           </Text>
           <Text variant="body" color="tertiary">
             İstemediğin bir davranışa yaklaşırken küçük bir duraklama yarat; olanı yargısız kaydet; zamanla kendi örüntünü gör.

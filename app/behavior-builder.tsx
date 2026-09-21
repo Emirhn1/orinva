@@ -12,6 +12,8 @@ import { BehaviorCategory, BehaviorColor, GoalMode } from '@/data/types';
 import { PLAN_CHIPS } from '@/content/chips';
 import { BEHAVIOR_TEMPLATES, BEHAVIOR_COLORS, GOAL_LABEL, behaviorAppearanceFor, behaviorVerbsFor, unitWordFor } from '@/content/behaviors';
 
+const CURRENCY_OPTIONS = ['₺', '$', '€', '£'];
+
 const MODES: { id: GoalMode; title: string }[] = [
   { id: 'quit', title: 'Bırak' },
   { id: 'reduce', title: 'Azalt' },
@@ -54,6 +56,7 @@ export default function BehaviorBuilderScreen() {
   const [minutes, setMinutes] = useState(editing?.minutesPerUnit ? String(editing.minutesPerUnit) : '');
   const [goalLabel, setGoalLabel] = useState(editing?.savingsGoalLabel ?? '');
   const [goalAmount, setGoalAmount] = useState(editing?.savingsGoalAmount ? String(editing.savingsGoalAmount) : '');
+  const [currency, setCurrency] = useState(editing?.costCurrency ?? '₺');
   const [dailyTarget, setDailyTarget] = useState(editing?.dailyTarget ? String(editing.dailyTarget) : '');
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -87,7 +90,7 @@ export default function BehaviorBuilderScreen() {
           minutesPerUnit: parseNum(minutes),
           savingsGoalLabel: goalLabel.trim() || undefined,
           savingsGoalAmount: parseNum(goalAmount),
-          costCurrency: '₺',
+          costCurrency: currency,
         }
       : { baselinePerDay: undefined, costPerUnit: undefined, minutesPerUnit: undefined, savingsGoalLabel: undefined, savingsGoalAmount: undefined };
 
@@ -271,14 +274,22 @@ export default function BehaviorBuilderScreen() {
           <Surface radius="lg" bordered style={{ padding: tokens.spacing['16'], gap: tokens.spacing['12'] }}>
             <Text variant="label">Kazanç sayacı</Text>
             <Input label={`Önceden günde kaç ${unitWord}?`} placeholder="Örn. 15" value={baseline} onChangeText={setBaseline} keyboardType="decimal-pad" />
-            <Input label={`Bir ${unitWord} kaç ₺?`} placeholder="Örn. 4" value={cost} onChangeText={setCost} keyboardType="decimal-pad" />
+            <View>
+              <Text variant="label" color="secondary" style={{ marginBottom: tokens.spacing['8'] }}>Para birimi</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing['8'] }}>
+                {CURRENCY_OPTIONS.map((c) => (
+                  <Chip key={c} label={c} selected={currency === c} onPress={() => setCurrency(c)} compact />
+                ))}
+              </View>
+            </View>
+            <Input label={`Bir ${unitWord} kaç ${currency}?`} placeholder="Örn. 4" value={cost} onChangeText={setCost} keyboardType="decimal-pad" />
             <Input label={`Bir ${unitWord} kaç dakika?`} placeholder="Örn. 5" value={minutes} onChangeText={setMinutes} keyboardType="decimal-pad" />
             <View style={{ flexDirection: 'row', gap: tokens.spacing['8'] }}>
               <View style={{ flex: 2 }}>
                 <Input label="Birikeni bağla (opsiyonel)" placeholder="Örn. Kulaklık" value={goalLabel} onChangeText={setGoalLabel} maxLength={30} />
               </View>
               <View style={{ flex: 1 }}>
-                <Input label="Hedef ₺" placeholder="1500" value={goalAmount} onChangeText={setGoalAmount} keyboardType="decimal-pad" />
+                <Input label={`Hedef ${currency}`} placeholder="1500" value={goalAmount} onChangeText={setGoalAmount} keyboardType="decimal-pad" />
               </View>
             </View>
             <Text variant="caption" color="tertiary" onPress={() => setShowEarnings(false)} accessibilityRole="button">

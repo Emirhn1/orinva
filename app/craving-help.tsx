@@ -12,12 +12,13 @@ import { usageKey } from '@/utils/chips';
 import { EventOutcome } from '@/data/types';
 import { commitActed } from '@/utils/actedFlow';
 
-type Step = 'notice' | 'plan' | 'closure' | 'help';
+type Step = 'plan' | 'closure' | 'log' | 'help';
 
 /**
- * Zor An — the one flow the whole app is judged on. Three decisions max:
- * how strong is it → what helps right now → how are you now.
- * Wave mode and the delay timer are real screens; this flow hands off to them.
+ * Zor An — the one flow the whole app is judged on. The saved plan is the
+ * very first thing shown; nothing gates it. Intensity/trigger detail is
+ * optional and, when it's asked at all, it's asked after the intervention —
+ * never before it.
  */
 export default function CravingHelpScreen() {
   const router = useRouter();
@@ -36,11 +37,13 @@ export default function CravingHelpScreen() {
     [reasons, behavior]
   );
 
-  const [step, setStep] = useState<Step>('notice');
+  const [step, setStep] = useState<Step>('plan');
   const [intensity, setIntensity] = useState<number | null>(null);
   const [triggers, setTriggers] = useState<string[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [eventId, setEventId] = useState<string | null>(params.eventId ?? null);
+  const [pendingOutcome, setPendingOutcome] = useState<EventOutcome>(null);
+  const [returnStep, setReturnStep] = useState<Step>('plan');
 
   useEffect(() => {
     if (!eventId && behavior) {
@@ -49,11 +52,11 @@ export default function CravingHelpScreen() {
     }
   }, [behavior]);
 
-  const stepIndex = { notice: 0, plan: 1, closure: 2, help: 2 }[step];
+  const stepIndex = { plan: 0, closure: 1, log: 2, help: 0 }[step === 'help' ? returnStep : step];
 
-  const persistNotice = () => {
-    if (eventId) updateEvent(eventId, { intensity, triggers });
-    bumpChipUsage(triggers.map((t) => usageKey('trigger', t)));
+  const persistDetail = () => {
+    if (eventId && (intensity !== null || triggers.length)) updateEvent(eventId, { intensity, triggers });
+    if (triggers.length) bumpChipUsage(triggers.map((t) => usageKey('trigger', t)));
   };
 
   const choosePlan = (id: string) => {
@@ -74,53 +77,55 @@ export default function CravingHelpScreen() {
     }
   };
 
+  // Recording detail is optional and comes after the outcome, never before help.
   const finish = (outcome: EventOutcome) => {
     if (!behavior) return;
     if (outcome === 'acted') {
       commitActed(router, behavior, { eventId, source: 'craving_help', extra: { helpedByPlan: selectedPlan }, afterQuiet: () => router.replace('/(tabs)/today') });
       return;
     }
-    const snapshot = eventId ? useAppStore.getState().events.find((event) => event.id === eventId) : undefined;
     if (eventId) closeEvent(eventId, outcome, { helpedByPlan: selectedPlan });
-    if (outcome === 'resisted') toast.show({ message: 'Geçti. Kaydettim.', tone: 'success', actionLabel: 'Geri al', durationMs: tokens.motion.undoWindow, onAction: () => snapshot && updateEvent(snapshot.id, snapshot) });
+    setPendingOutcome(outcome);
+    setStep('log');
+  };
+
+  const OUTCOME_MESSAGE: Partial<Record<NonNullable<EventOutcome>, string>> = {
+    resisted: 'Geçti. Kaydettim.',
+    delayed: 'Erteledin. Bu da bir kazanım — kaydettim.',
+    unsure: 'Kaydettim. Emin olmasan da burada olman değerli.',
+  };
+
+  const finishLog = () => {
+    persistDetail();
+    const snapshot = eventId ? useAppStore.getState().events.find((event) => event.id === eventId) : undefined;
+    toast.show({
+      message: (pendingOutcome && OUTCOME_MESSAGE[pendingOutcome]) || 'Kaydettim.',
+      tone: pendingOutcome === 'resisted' ? 'success' : 'neutral',
+      actionLabel: 'Geri al',
+      durationMs: tokens.motion.undoWindow,
+      onAction: () => snapshot && updateEvent(snapshot.id, snapshot),
+    });
     router.replace('/(tabs)/today');
   };
 
   if (!behavior) return null;
 
   const footer = (
-    <Text variant="caption" color="tertiary" onPress={() => setStep('help')} accessibilityRole="button">
+    <Text
+      variant="caption"
+      color="tertiary"
+      onPress={() => {
+        setReturnStep(step);
+        setStep('help');
+      }}
+      accessibilityRole="button"
+    >
       Kriz desteği
     </Text>
   );
 
   return (
     <ModalShell onClose={() => router.back()} progress={(stepIndex + 1) / 3} footer={footer}>
-      {step === 'notice' && (
-        <View>
-          <Text variant="headline">{behavior.verbUrge}</Text>
-          <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['8'], marginBottom: tokens.spacing['24'] }}>
-            Burada olduğun için iyi. İstersen işaretle, istersen doğrudan devam et.
-          </Text>
-          <Text variant="label" color="secondary" style={{ marginBottom: tokens.spacing['8'] }}>
-            Ne kadar zor?
-          </Text>
-          <CravingSelector value={intensity} onChange={(v) => setIntensity(intensity === v ? null : v)} />
-          <View style={{ marginTop: tokens.spacing['24'] }}>
-            <ChipGroup mode="multi" label="Tetikleyici?" options={TRIGGER_CHIPS} namespace="trigger" value={triggers} onChange={setTriggers} max={3} />
-          </View>
-          <View style={{ marginTop: tokens.spacing['32'] }}>
-            <Button
-              label="Devam et"
-              onPress={() => {
-                persistNotice();
-                setStep('plan');
-              }}
-            />
-          </View>
-        </View>
-      )}
-
       {step === 'plan' && (
         <PlanStep
           reasonText={reason?.text ?? null}
@@ -133,13 +138,34 @@ export default function CravingHelpScreen() {
       )}
 
       {step === 'closure' && <ClosureStep onOutcome={finish} resistedLabel={behavior.verbResist} actedLabel={behavior.verbDid} />}
-      {step === 'help' && <HelpStep onBack={() => setStep('closure')} />}
+
+      {step === 'log' && (
+        <View>
+          <Text variant="headline">İstersen ekle</Text>
+          <Text variant="body" color="secondary" style={{ marginTop: tokens.spacing['8'], marginBottom: tokens.spacing['24'] }}>
+            Bu tamamen isteğe bağlı — atlayabilirsin.
+          </Text>
+          <Text variant="label" color="secondary" style={{ marginBottom: tokens.spacing['8'] }}>
+            Ne kadar zordu?
+          </Text>
+          <CravingSelector value={intensity} onChange={(v) => setIntensity(intensity === v ? null : v)} />
+          <View style={{ marginTop: tokens.spacing['24'] }}>
+            <ChipGroup mode="multi" label="Tetikleyici?" options={TRIGGER_CHIPS} namespace="trigger" value={triggers} onChange={setTriggers} max={3} />
+          </View>
+          <View style={{ marginTop: tokens.spacing['32'], gap: tokens.spacing['12'] }}>
+            <Button label="Kaydet ve bitir" onPress={finishLog} />
+            <Button label="Atla" variant="ghost" onPress={finishLog} />
+          </View>
+        </View>
+      )}
+
+      {step === 'help' && <HelpStep onBack={() => setStep(returnStep)} />}
     </ModalShell>
   );
 }
 
 const HANDOFF_OPTIONS: { id: string; label: string; description: string; icon: IconName }[] = [
-  { id: 'wave', label: 'Dalgayı bekle', description: '3 dakika. İstek yükselir, zirve yapar, geçer.', icon: 'wind' },
+  { id: 'wave', label: 'Dalgayı izle', description: '3 dakika. İstek bir dalga gibi yükselir, zirve yapar, geçer.', icon: 'wind' },
   { id: 'delay', label: 'Ertele', description: '2–20 dakika sonra tekrar sor.', icon: 'clock' },
 ];
 
@@ -159,7 +185,9 @@ function PlanStep({
   onNext: () => void;
 }) {
   const { colors, tokens } = useTheme();
-  const localOptions = MICRO_PLAN_OPTIONS.filter((o) => o.id !== 'delay' && o.id !== 'breathe' && (o.id !== 'reason' || reasonText));
+  // 'delay' has its own handoff row above; everything else — breathing, non-breathing
+  // calming, and reaching out — stays here as its own distinct, separately labeled option.
+  const localOptions = MICRO_PLAN_OPTIONS.filter((o) => o.id !== 'delay' && (o.id !== 'reason' || reasonText));
 
   return (
     <View>
@@ -168,17 +196,7 @@ function PlanStep({
         Kendi planın öncelikli. Birini seç, ya da kendi yolunu izle.
       </Text>
 
-      {reasonText ? (
-        <Surface radius="lg" bordered style={{ padding: tokens.spacing['16'], marginBottom: tokens.spacing['16'], borderColor: colors.indigo }}>
-          <Text variant="caption" color="tertiary">
-            Senin nedenin
-          </Text>
-          <Text variant="bodyLarge" serif style={{ marginTop: tokens.spacing['4'] }}>
-            {reasonText}
-          </Text>
-        </Surface>
-      ) : null}
-
+      {/* The saved personal plan is the first concrete thing shown — before the reason, before any handoff option. */}
       {planAlternative ? (
         <Pressable onPress={() => onSelectLocal('own')}>
           <Surface radius="lg" bordered style={{ padding: tokens.spacing['16'], marginBottom: tokens.spacing['16'], borderColor: selectedPlan === 'own' ? colors.indigo : colors.border, borderWidth: selectedPlan === 'own' ? 1.5 : 1 }}>
@@ -190,6 +208,17 @@ function PlanStep({
             </Text>
           </Surface>
         </Pressable>
+      ) : null}
+
+      {reasonText ? (
+        <Surface radius="lg" bordered style={{ padding: tokens.spacing['16'], marginBottom: tokens.spacing['16'], borderColor: colors.indigo }}>
+          <Text variant="caption" color="tertiary">
+            Senin nedenin
+          </Text>
+          <Text variant="bodyLarge" serif style={{ marginTop: tokens.spacing['4'] }}>
+            {reasonText}
+          </Text>
+        </Surface>
       ) : null}
 
       <View style={{ gap: tokens.spacing['8'] }}>

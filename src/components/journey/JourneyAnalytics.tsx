@@ -1,12 +1,14 @@
-import React, { useMemo, useState } from 'react';
-import { View } from 'react-native';
-import { Card, Text, ProgressRing, Chip, TrendBars, HeatGrid, DistributionBars, CalendarGrid, EvidenceCaption, EmptyState } from '@/components/ui';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Card, Text, ProgressRing, Chip, TrendBars, HeatGrid, DistributionBars, CalendarGrid, EvidenceCaption, EmptyState, OutcomeBadge } from '@/components/ui';
 import { resolveChipLabel } from '@/components/ui/ChipGroup';
 import { Icon } from '@/icons';
 import { useTheme } from '@/design/ThemeProvider';
 import { UrgeEvent, Behavior } from '@/data/types';
 import { TRIGGER_CHIPS, LOCATION_CHIPS } from '@/content/chips';
-import { todayKey, dayKey, formatMoney, formatMinutesHuman } from '@/utils/date';
+import { planLabel } from '@/content/library';
+import { todayKey, dayKey, formatClock, formatMoney, formatMinutesHuman } from '@/utils/date';
 import {
   RangeDays,
   eventsInWindow,
@@ -23,7 +25,11 @@ import {
   computeIntensityTrend,
   computeEarnings,
   computeMoodOutcome,
+  computeHelpedByPlanDistribution,
+  eventsForBucket,
+  eventsForDay,
   HeatCell,
+  SeriesPoint,
 } from '@/utils/journey';
 
 const RANGES: { id: RangeDays; label: string }[] = [
@@ -34,6 +40,7 @@ const RANGES: { id: RangeDays; label: string }[] = [
 ];
 
 const MIN_SAMPLE = 5;
+const LOW_SAMPLE = 5; // below this, a rate/percentage is shown but visually muted, never as a confident win
 
 interface Props {
   events: UrgeEvent[]; // already filtered to the behavior(s) of interest
@@ -47,6 +54,17 @@ interface Props {
 const triggerLabel = (id: string) => resolveChipLabel(TRIGGER_CHIPS, id) ?? id;
 const locationLabel = (id: string) => resolveChipLabel(LOCATION_CHIPS, id) ?? id;
 
+function trendPointLabel(point: SeriesPoint, range: RangeDays): string {
+  const [y, m, d] = point.key.split('-').map(Number);
+  const start = new Date(y, m - 1, d);
+  const dayGranularity = range === 7 || range === 30;
+  const startLabel = start.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' });
+  if (dayGranularity) return startLabel;
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  return `${startLabel} – ${end.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}`;
+}
+
 /**
  * The shared analytics stack used by Journey overview and Behavior detail
  * (Plan §6.2). Every chart carries its denominator; sections that don't yet
@@ -54,8 +72,12 @@ const locationLabel = (id: string) => resolveChipLabel(LOCATION_CHIPS, id) ?? id
  */
 export function JourneyAnalytics({ events, behaviors, now, onLogPress, showRange = true }: Props) {
   const { colors, tokens } = useTheme();
+  const router = useRouter();
+  const behaviorLabel = (id: string) => (behaviors.length > 1 ? behaviors.find((b) => b.id === id)?.name ?? '' : '');
   const [range, setRange] = useState<RangeDays>(7);
   const [selectedCell, setSelectedCell] = useState<HeatCell | null>(null);
+  const [selectedPoint, setSelectedPoint] = useState<SeriesPoint | null>(null);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   const windowEvents = useMemo(() => eventsInWindow(events, range, now), [events, range, now]);
   const previousEvents = useMemo(() => eventsInPreviousWindow(events, range, now), [events, range, now]);
@@ -69,10 +91,18 @@ export function JourneyAnalytics({ events, behaviors, now, onLogPress, showRange
   const insights = useMemo(() => computeInsights(windowEvents, { trigger: triggerLabel, location: locationLabel }), [windowEvents]);
   const comparison = useMemo(() => comparePeriods(windowEvents, previousEvents), [windowEvents, previousEvents]);
   const calendarStates = useMemo(() => computeCalendarStates(events), [events]);
+  const helpedByPlan = useMemo(() => computeHelpedByPlanDistribution(windowEvents), [windowEvents]);
   const allDataDays = useMemo(() => new Set(events.map((event) => dayKey(event.startedAt))).size, [events]);
   const windowDataDays = useMemo(() => new Set(windowEvents.map((event) => dayKey(event.startedAt))).size, [windowEvents]);
   const hasTrendData = windowDataDays >= 7;
   const hasInsightData = windowEvents.length >= 15 && windowDataDays >= 3;
+
+  useEffect(() => setSelectedPoint(null), [range]);
+
+  const selectedPointIndex = selectedPoint ? series.findIndex((p) => p.key === selectedPoint.key) : -1;
+  const selectedPointRecords = selectedPoint ? eventsForBucket(windowEvents, selectedPoint, range) : [];
+  const selectedPointPrev = selectedPointIndex > 0 ? series[selectedPointIndex - 1] : null;
+  const selectedDayRecords = selectedDay ? eventsForDay(events, selectedDay) : [];
 
   const rangeLabel = RANGES.find((r) => r.id === range)?.label ?? '';
 
@@ -87,10 +117,10 @@ export function JourneyAnalytics({ events, behaviors, now, onLogPress, showRange
         </View>
       ) : null}
 
-      {/* Resist rate hero */}
+      {/* Resist rate hero — a low sample never gets the confident "success" color, so 1/1 doesn't read like a real 100%. */}
       <Card hero>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['20'] }}>
-          <ProgressRing progress={rate.rate ?? 0} size={96} color={colors.outcomeResisted}>
+          <ProgressRing progress={rate.rate ?? 0} size={96} color={rate.closed >= LOW_SAMPLE ? colors.outcomeResisted : colors.textTertiary}>
             <Text variant="statSmall" tabular>
               {rate.rate !== null ? `%${Math.round(rate.rate * 100)}` : '—'}
             </Text>
@@ -107,6 +137,11 @@ export function JourneyAnalytics({ events, behaviors, now, onLogPress, showRange
                   ? `${rate.closed} sonuçlanmış kaydın ${rate.resisted}'inde direndin ya da erteledin (${Math.round((rate.rate ?? 0) * 100)}%).${windowEvents.length - rate.closed > 0 ? ` ${windowEvents.length - rate.closed} kayıt bu orana girmiyor.` : ''}`
                   : `${windowEvents.length} istek kaydettin; sonuçları Günlük'ten tamamlayabilirsin.`}
             </Text>
+            {rate.closed > 0 && rate.closed < LOW_SAMPLE ? (
+              <Text variant="caption" color="amber" style={{ marginTop: tokens.spacing['4'] }}>
+                Az veri — bu oran birkaç kayıtla hızla değişebilir.
+              </Text>
+            ) : null}
             {comparison.deltaPct !== null ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['4'], marginTop: tokens.spacing['8'] }}>
                 <Icon name={comparison.direction === 'down' ? 'trending-up' : 'activity'} size={14} color={comparison.direction === 'down' ? colors.success : colors.textTertiary} />
@@ -127,11 +162,39 @@ export function JourneyAnalytics({ events, behaviors, now, onLogPress, showRange
         </Card>
       ) : null}
 
-      {/* Trend */}
+      {/* Trend — tap a bar to see that bucket's actual records */}
       {windowEvents.length > 0 && hasTrendData ? (
         <Card padded title="Değişim" caption={range === 7 || range === 30 ? 'günlük' : 'haftalık'}>
-          <TrendBars points={series} />
+          <TrendBars points={series} onSelect={setSelectedPoint} selectedKey={selectedPoint?.key ?? null} />
           <EvidenceCaption sample={windowEvents.length} />
+          {selectedPoint ? (
+            <View style={{ marginTop: tokens.spacing['12'], paddingTop: tokens.spacing['12'], borderTopWidth: 1, borderTopColor: colors.border }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text variant="label">{trendPointLabel(selectedPoint, range)}</Text>
+                <Pressable onPress={() => setSelectedPoint(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Kapat">
+                  <Icon name="x" size={16} color={colors.textTertiary} />
+                </Pressable>
+              </View>
+              <Text variant="caption" color="secondary" style={{ marginTop: tokens.spacing['4'] }}>
+                {selectedPoint.total} istek · {selectedPoint.resisted} direndim/erteledim · {selectedPoint.acted} yaptım
+                {selectedPointPrev ? ` · önceki döneme göre ${selectedPoint.total - selectedPointPrev.total >= 0 ? '+' : ''}${selectedPoint.total - selectedPointPrev.total}` : ''}
+              </Text>
+              {selectedPointRecords.length ? (
+                <View style={{ marginTop: tokens.spacing['8'], gap: tokens.spacing['4'] }}>
+                  {selectedPointRecords.slice(0, 5).map((e) => (
+                    <Pressable key={e.id} onPress={() => router.push({ pathname: '/event-detail', params: { id: e.id } })} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['8'], minHeight: 32 }}>
+                      <Text variant="caption" color="tertiary" tabular style={{ width: 44 }}>{formatClock(e.startedAt)}</Text>
+                      <Text variant="caption" color="secondary" numberOfLines={1} style={{ flex: 1 }}>{behaviorLabel(e.behaviorId)}</Text>
+                      <OutcomeBadge outcome={e.outcome} />
+                    </Pressable>
+                  ))}
+                  {selectedPointRecords.length > 5 ? (
+                    <Text variant="caption" color="tertiary">+{selectedPointRecords.length - 5} kayıt daha</Text>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
         </Card>
       ) : windowEvents.length > 0 ? (
         <Card padded title="Değişim">
@@ -257,9 +320,48 @@ export function JourneyAnalytics({ events, behaviors, now, onLogPress, showRange
         </Card>
       ) : null}
 
-      {/* Calendar */}
+      {/* Which micro-intervention actually helped — local counting, no AI. */}
+      {helpedByPlan.sample >= MIN_SAMPLE ? (
+        <Card padded title="Ne yardımcı oldu?">
+          <DistributionBars rows={helpedByPlan.rows} labelFor={planLabel} color={colors.success} />
+          <EvidenceCaption sample={helpedByPlan.sample} unit="işe yarayan kayıttan" />
+        </Card>
+      ) : windowEvents.length > 0 ? (
+        <Card padded title="Ne yardımcı oldu?">
+          <Text variant="body" color="secondary">
+            Hangi yöntemin işe yaradığını görmek için Zor An'da bir plan seçip sonucunu kaydettiğin en az {MIN_SAMPLE} an gerekiyor. Yeterli veri henüz yok.
+          </Text>
+          <EvidenceCaption sample={helpedByPlan.sample} unit="işe yarayan kayıttan" />
+        </Card>
+      ) : null}
+
+      {/* Calendar — tap a day to see that day's real records */}
       <Card padded title="Bu ay" caption={now.toLocaleDateString('tr-TR', { month: 'long' })}>
-        <CalendarGrid year={now.getFullYear()} month={now.getMonth()} states={calendarStates} todayKey={todayKey(now)} />
+        <CalendarGrid year={now.getFullYear()} month={now.getMonth()} states={calendarStates} todayKey={todayKey(now)} onSelect={setSelectedDay} selectedKey={selectedDay} />
+        {selectedDay ? (
+          <View style={{ marginTop: tokens.spacing['12'], paddingTop: tokens.spacing['12'], borderTopWidth: 1, borderTopColor: colors.border }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text variant="label">{new Date(`${selectedDay}T00:00:00`).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}</Text>
+              <Pressable onPress={() => setSelectedDay(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Kapat">
+                <Icon name="x" size={16} color={colors.textTertiary} />
+              </Pressable>
+            </View>
+            {selectedDayRecords.length ? (
+              <View style={{ marginTop: tokens.spacing['8'], gap: tokens.spacing['4'] }}>
+                {selectedDayRecords.slice(0, 5).map((e) => (
+                  <Pressable key={e.id} onPress={() => router.push({ pathname: '/event-detail', params: { id: e.id } })} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['8'], minHeight: 32 }}>
+                    <Text variant="caption" color="tertiary" tabular style={{ width: 44 }}>{formatClock(e.startedAt)}</Text>
+                    <Text variant="caption" color="secondary" numberOfLines={1} style={{ flex: 1 }}>{behaviorLabel(e.behaviorId)}</Text>
+                    <OutcomeBadge outcome={e.outcome} />
+                  </Pressable>
+                ))}
+                {selectedDayRecords.length > 5 ? <Text variant="caption" color="tertiary">+{selectedDayRecords.length - 5} kayıt daha</Text> : null}
+              </View>
+            ) : (
+              <Text variant="caption" color="tertiary" style={{ marginTop: tokens.spacing['4'] }}>Bu gün için kayıt yok.</Text>
+            )}
+          </View>
+        ) : null}
       </Card>
     </View>
   );

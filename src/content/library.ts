@@ -60,8 +60,20 @@ export const MICRO_PLAN_OPTIONS: MicroPlanOption[] = [
   { id: 'water', label: 'Su iç / yürü', description: 'Ortamını kısa süreliğine değiştir.', icon: 'droplet' },
   { id: 'reason', label: 'Nedenimi gör', description: 'Kendi yazdığın nedeni oku.', icon: 'feather' },
   { id: 'write', label: 'Kısaca yaz', description: 'Şu an ne olduğunu bir cümleyle not et.', icon: 'edit-3' },
-  { id: 'reach', label: 'Birine yaz', description: 'Önceden seçtiğin destek kişine ulaş.', icon: 'message-circle' },
+  { id: 'reach', label: 'Birine ulaş', description: 'Güvendiğin biriyle konuş ya da mesaj at.', icon: 'message-circle' },
 ];
+
+/** Every `UrgeEvent.helpedByPlan` value that can be recorded, human-labeled — used to explain "which tool helped" stats. */
+export const PLAN_LABELS: Record<string, string> = {
+  wave: 'Dalgayı izle',
+  delay: 'Ertele',
+  own: 'Kendi planım',
+  ...Object.fromEntries(MICRO_PLAN_OPTIONS.map((o) => [o.id, o.label])),
+};
+
+export function planLabel(id: string): string {
+  return PLAN_LABELS[id] ?? id;
+}
 
 export const HEALTH_TIMELINE_NICOTINE = [
   { hours: 0.33, label: '20 dakika', text: 'Nabız ve tansiyon normale dönmeye başlar.' },

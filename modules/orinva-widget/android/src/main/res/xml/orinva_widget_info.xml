@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  updatePeriodMillis="0": the OS never polls this widget on a timer — it is
+  only ever redrawn when the app explicitly pushes a new snapshot (see
+  OrinvaWidgetModule/OrinvaWidgetProvider). This keeps it from behaving like
+  a live-ticking counter, per the plan's explicit "don't design it like a
+  live seconds counter" constraint.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="80dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_orinva_locked"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:description="@string/orinva_widget_description" />

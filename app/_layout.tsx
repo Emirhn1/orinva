@@ -10,6 +10,7 @@ import { toast } from '@/store/useToastStore';
 import { ToastHost } from '@/components/ui';
 import { startNotificationScheduler } from '@/notifications/scheduler';
 import { subscribeResponses, ACTION_FAVORITE, ACTION_HIDE } from '@/notifications/native';
+import { startWidgetSync } from '@/widgets/scheduler';
 import { useFonts, Lora_500Medium } from '@expo-google-fonts/lora';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -59,6 +60,9 @@ function RootNavigator() {
       stopResponses();
     };
   }, []);
+
+  // Part 4 — keep the home/lock-screen widget in sync with the app (never a live counter).
+  useEffect(() => startWidgetSync(), []);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>

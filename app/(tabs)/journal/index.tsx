@@ -120,7 +120,8 @@ export default function JournalScreen() {
                           </View>
                           <View style={{ flex: 1 }}>
                             <Text variant="body" numberOfLines={3}>
-                              {it.entry.text}
+                              {it.entry.isDraft ? '(Taslak) ' : ''}
+                              {it.entry.text || 'Henüz içerik eklenmedi — devam etmek için dokun.'}
                             </Text>
                             <Text variant="caption" color="tertiary" style={{ marginTop: tokens.spacing['4'] }}>
                               {formatClock(it.entry.createdAt)}

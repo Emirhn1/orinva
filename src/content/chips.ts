@@ -83,6 +83,7 @@ export const COMPANY_CHIPS: ChipOption[] = [
 /** Günlük etiketleri — single. */
 export const JOURNAL_TAG_CHIPS: ChipOption[] = [
   { id: 'free', label: 'Serbest' },
+  { id: 'guided_reflection', label: 'Rehberli düşünme' },
   { id: 'morning_intent', label: 'Sabah niyeti' },
   { id: 'evening_review', label: 'Akşam değerlendirmesi' },
   { id: 'slip_review', label: 'Nüksetme analizi' },

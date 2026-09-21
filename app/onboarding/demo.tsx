@@ -43,16 +43,33 @@ export default function OnboardingDemo() {
     if (finishing || !draft.category || !draft.goalMode) return;
     setFinishing(true);
     const planText = resolveChipLabel(PLAN_CHIPS, draft.planChip) ?? undefined;
-    const behavior = addBehavior({
-      name: draft.nickname.trim() || 'Davranışım',
-      category: draft.category,
-      verbDid: draft.category === 'custom' ? draft.verbDid.trim() || 'Yaptım' : undefined,
-      color: draft.behaviorColor,
-      icon: draft.behaviorIcon,
-      goalMode: draft.goalMode,
-      unit: 'event',
-      planAlternative: planText,
-    });
+
+    let behavior;
+    try {
+      behavior = addBehavior({
+        name: draft.nickname.trim() || 'Davranışım',
+        category: draft.category,
+        verbDid: draft.category === 'custom' ? draft.verbDid.trim() || 'Yaptım' : undefined,
+        color: draft.behaviorColor,
+        icon: draft.behaviorIcon,
+        goalMode: draft.goalMode,
+        unit: 'event',
+        planAlternative: planText,
+      });
+    } catch (error) {
+      // Already at the 5 active-behavior limit (e.g. onboarding re-entered with
+      // existing data) — don't crash the app over a demo step; just skip adding
+      // a redundant behavior and let the user land on what they already have.
+      if (error instanceof Error && error.message === 'ACTIVE_BEHAVIOR_LIMIT') {
+        toast.show({ message: 'Zaten beş aktif davranışın var — bunu atladık.', icon: 'info' });
+        completeOnboarding();
+        resetDraft();
+        router.replace('/(tabs)/today');
+        return;
+      }
+      throw error;
+    }
+
     for (const id of draft.whyChips) {
       const label = resolveChipLabel(WHY_CHIPS, id);
       if (label) addReason(behavior.id, 'reason', label);

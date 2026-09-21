@@ -374,6 +374,45 @@ export function computeIntensityTrend(events: UrgeEvent[]): IntensityTrend {
 }
 
 // ---------------------------------------------------------------------------
+// Drill-down: the real records behind a selected chart point
+// ---------------------------------------------------------------------------
+
+/** The events inside a trend bucket — same bucketing rule as computeTrendSeries, so a tapped bar's records match what's plotted. */
+export function eventsForBucket(events: UrgeEvent[], point: SeriesPoint, windowDays: RangeDays): UrgeEvent[] {
+  const bucketDays = windowDays === 7 || windowDays === 30 ? 1 : 7;
+  const start = new Date(`${point.key}T00:00:00`);
+  const end = new Date(start);
+  end.setDate(end.getDate() + bucketDays);
+  return events
+    .filter((e) => {
+      const t = new Date(e.startedAt).getTime();
+      return t >= start.getTime() && t < end.getTime();
+    })
+    .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+}
+
+export function eventsForDay(events: UrgeEvent[], key: string): UrgeEvent[] {
+  return events.filter((e) => dayKey(e.startedAt) === key).sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+}
+
+// ---------------------------------------------------------------------------
+// Which micro-intervention actually helped (F6 — no AI, local counting only)
+// ---------------------------------------------------------------------------
+
+export function computeHelpedByPlanDistribution(events: UrgeEvent[], limit = 5): { rows: DistributionRow[]; sample: number } {
+  // Only outcomes where the plan demonstrably worked count toward "helped".
+  const helped = events.filter((e) => e.helpedByPlan && (e.outcome === 'resisted' || e.outcome === 'delayed'));
+  const counts = new Map<string, number>();
+  for (const e of helped) counts.set(e.helpedByPlan as string, (counts.get(e.helpedByPlan as string) ?? 0) + 1);
+  const sample = helped.length;
+  const rows = Array.from(counts.entries())
+    .map(([id, count]) => ({ id, count, share: sample ? count / sample : 0, resistRate: null }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+  return { rows, sample };
+}
+
+// ---------------------------------------------------------------------------
 // Delay timer stats (F4)
 // ---------------------------------------------------------------------------
 

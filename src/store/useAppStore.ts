@@ -39,6 +39,7 @@ const NOTIFICATION_PREFS_KEY = 'notificationPrefs';
 const NOTIFICATION_PLAN_KEY = 'notificationPlan';
 const LAST_INSIGHT_KEY = 'lastInsightNotifiedAt';
 const QUOTE_OF_DAY_KEY = 'quoteOfDay';
+const FOCUS_BEHAVIOR_KEY = 'focusBehaviorId';
 
 interface StoredPlan {
   key: string;
@@ -100,6 +101,10 @@ interface AppState {
   lastInsightNotifiedAt: string | null;
   quoteOfDay: { date: string; id: string } | null;
 
+  /** The behavior the user last explicitly picked on Bugün — also what the widget shows (Part 4 §consistency). null = default resolution (most recently active, else first). */
+  focusBehaviorId: string | null;
+  setFocusBehavior: (id: string | null) => void;
+
   boot: () => void;
 
   addBehavior: (input: BehaviorInput) => Behavior;
@@ -114,7 +119,7 @@ interface AppState {
   removeEvent: (id: string) => void;
   restoreEvent: (event: UrgeEvent) => void;
 
-  addJournalEntry: (input: { text: string; linkedEventId?: string | null; tag?: string | null; mood?: string | null }) => JournalEntry;
+  addJournalEntry: (input: { text: string; linkedEventId?: string | null; tag?: string | null; mood?: string | null; situation?: string | null; thought?: string | null; reframe?: string | null; isDraft?: boolean }) => JournalEntry;
   updateJournalEntry: (id: string, patch: Partial<JournalEntry>) => void;
   removeJournalEntry: (id: string) => void;
 
@@ -183,6 +188,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   notificationPlan: [],
   lastInsightNotifiedAt: null,
   quoteOfDay: null,
+  focusBehaviorId: null,
+
+  setFocusBehavior: (id) => {
+    settingsRepo.setJson(FOCUS_BEHAVIOR_KEY, id);
+    set({ focusBehaviorId: id });
+  },
 
   boot: () => {
     initDb();
@@ -205,6 +216,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       notificationPlan: hydratePlan(settingsRepo.getJson<StoredPlan[]>(NOTIFICATION_PLAN_KEY, [])),
       lastInsightNotifiedAt: settingsRepo.getJson<string | null>(LAST_INSIGHT_KEY, null),
       quoteOfDay: settingsRepo.getJson<{ date: string; id: string } | null>(QUOTE_OF_DAY_KEY, null),
+      focusBehaviorId: settingsRepo.getJson<string | null>(FOCUS_BEHAVIOR_KEY, null),
       behaviors: behaviorsRepo.list(),
       events: eventsRepo.list(),
       journalEntries: journalRepo.list(),
@@ -321,8 +333,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
-  addJournalEntry: ({ text, linkedEventId = null, tag = null, mood = null }) => {
-    const entry = journalRepo.create({ text, linkedEventId, tag, mood });
+  addJournalEntry: ({ text, linkedEventId = null, tag = null, mood = null, situation = null, thought = null, reframe = null, isDraft = false }) => {
+    const entry = journalRepo.create({ text, linkedEventId, tag, mood, situation, thought, reframe, isDraft });
     set((s) => ({ journalEntries: [entry, ...s.journalEntries] }));
     return entry;
   },
@@ -514,6 +526,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       notificationPlan: [],
       lastInsightNotifiedAt: null,
       quoteOfDay: null,
+      focusBehaviorId: null,
     });
   },
 }));

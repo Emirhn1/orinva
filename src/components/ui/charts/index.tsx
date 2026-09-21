@@ -19,7 +19,7 @@ export function EvidenceCaption({ sample, unit = 'kayıttan' }: { sample: number
 // Trend bars — total urges per bucket, resisted share stacked on top
 // ---------------------------------------------------------------------------
 
-export function TrendBars({ points, height = 120 }: { points: SeriesPoint[]; height?: number }) {
+export function TrendBars({ points, height = 120, onSelect, selectedKey }: { points: SeriesPoint[]; height?: number; onSelect?: (point: SeriesPoint) => void; selectedKey?: string | null }) {
   const { colors, tokens } = useTheme();
   const [width, setWidth] = React.useState(0);
   const max = Math.max(1, ...points.map((p) => p.total));
@@ -34,31 +34,49 @@ export function TrendBars({ points, height = 120 }: { points: SeriesPoint[]; hei
   return (
     <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       {width > 0 ? (
-        <Svg width={width} height={height}>
-          <Line x1={axisW} y1={chartTop} x2={axisW} y2={chartBottom} stroke={colors.borderStrong} strokeWidth={1} />
-          <Line x1={axisW} y1={chartBottom} x2={width} y2={chartBottom} stroke={colors.borderStrong} strokeWidth={1} />
-          <Line x1={axisW} y1={chartTop + plotH / 2} x2={width} y2={chartTop + plotH / 2} stroke={colors.surfaceSecondary} strokeWidth={1} />
-          <SvgText x={axisW - 4} y={chartTop + 4} fill={colors.textTertiary} fontSize={9} textAnchor="end">{max}</SvgText>
-          <SvgText x={axisW - 4} y={chartTop + plotH / 2 + 3} fill={colors.textTertiary} fontSize={9} textAnchor="end">{Math.ceil(max / 2)}</SvgText>
-          <SvgText x={axisW - 4} y={chartBottom + 3} fill={colors.textTertiary} fontSize={9} textAnchor="end">0</SvgText>
-          {points.map((p, i) => {
-            const x = axisW + i * (barW + gap);
-            const totalH = (p.total / max) * plotH * 0.9;
-            const resistedH = (p.resisted / max) * plotH * 0.9;
-            const r = Math.min(tokens.radius.sm, barW / 2);
-            return (
-              <React.Fragment key={p.key}>
-                {p.total > 0 ? (
-                  <Rect x={x} y={chartBottom - totalH} width={barW} height={totalH} rx={r} fill={colors.indigo} opacity={0.35} />
-                ) : (
-                  <Rect x={x} y={chartBottom - 2} width={barW} height={2} rx={1} fill={colors.surfaceSecondary} />
-                )}
-                {p.resisted > 0 ? <Rect x={x} y={chartBottom - resistedH} width={barW} height={resistedH} rx={r} fill={colors.outcomeResisted} /> : null}
-                {p.total > 0 ? <SvgText x={x + barW / 2} y={Math.max(chartTop + 8, chartBottom - totalH - 3)} fill={colors.textSecondary} fontSize={barW < 10 ? 7 : 9} textAnchor="middle">{p.total}</SvgText> : null}
-              </React.Fragment>
-            );
-          })}
-        </Svg>
+        <View>
+          <Svg width={width} height={height}>
+            <Line x1={axisW} y1={chartTop} x2={axisW} y2={chartBottom} stroke={colors.borderStrong} strokeWidth={1} />
+            <Line x1={axisW} y1={chartBottom} x2={width} y2={chartBottom} stroke={colors.borderStrong} strokeWidth={1} />
+            <Line x1={axisW} y1={chartTop + plotH / 2} x2={width} y2={chartTop + plotH / 2} stroke={colors.surfaceSecondary} strokeWidth={1} />
+            <SvgText x={axisW - 4} y={chartTop + 4} fill={colors.textTertiary} fontSize={9} textAnchor="end">{max}</SvgText>
+            <SvgText x={axisW - 4} y={chartTop + plotH / 2 + 3} fill={colors.textTertiary} fontSize={9} textAnchor="end">{Math.ceil(max / 2)}</SvgText>
+            <SvgText x={axisW - 4} y={chartBottom + 3} fill={colors.textTertiary} fontSize={9} textAnchor="end">0</SvgText>
+            {points.map((p, i) => {
+              const x = axisW + i * (barW + gap);
+              const totalH = (p.total / max) * plotH * 0.9;
+              const resistedH = (p.resisted / max) * plotH * 0.9;
+              const r = Math.min(tokens.radius.sm, barW / 2);
+              const isSel = selectedKey === p.key;
+              return (
+                <React.Fragment key={p.key}>
+                  {isSel ? <Rect x={x - 1} y={chartTop} width={barW + 2} height={plotH} rx={r} fill={colors.surfaceSecondary} /> : null}
+                  {p.total > 0 ? (
+                    <Rect x={x} y={chartBottom - totalH} width={barW} height={totalH} rx={r} fill={colors.indigo} opacity={0.35} />
+                  ) : (
+                    <Rect x={x} y={chartBottom - 2} width={barW} height={2} rx={1} fill={colors.surfaceSecondary} />
+                  )}
+                  {p.resisted > 0 ? <Rect x={x} y={chartBottom - resistedH} width={barW} height={resistedH} rx={r} fill={colors.outcomeResisted} /> : null}
+                  {p.total > 0 ? <SvgText x={x + barW / 2} y={Math.max(chartTop + 8, chartBottom - totalH - 3)} fill={colors.textSecondary} fontSize={barW < 10 ? 7 : 9} textAnchor="middle">{p.total}</SvgText> : null}
+                </React.Fragment>
+              );
+            })}
+          </Svg>
+          {onSelect ? (
+            <View style={{ position: 'absolute', left: axisW, top: 0, flexDirection: 'row' }} pointerEvents="box-none">
+              {points.map((p, i) => (
+                <Pressable
+                  key={p.key}
+                  onPress={() => onSelect(p)}
+                  disabled={p.total === 0}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${p.label || p.key}: ${p.total} kayıt`}
+                  style={{ width: barW, height, marginRight: i === points.length - 1 ? 0 : gap }}
+                />
+              ))}
+            </View>
+          ) : null}
+        </View>
       ) : (
         <View style={{ height }} />
       )}
@@ -209,7 +227,7 @@ export function DistributionBars({ rows, labelFor, color }: { rows: Distribution
 // Month calendar — DESIGN.md §23: max 3 states, shape + label, not colour alone
 // ---------------------------------------------------------------------------
 
-export function CalendarGrid({ year, month, states, todayKey }: { year: number; month: number; states: Record<string, CalendarState>; todayKey: string }) {
+export function CalendarGrid({ year, month, states, todayKey, onSelect, selectedKey }: { year: number; month: number; states: Record<string, CalendarState>; todayKey: string; onSelect?: (dayKey: string) => void; selectedKey?: string | null }) {
   const { colors, tokens } = useTheme();
   const first = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -238,17 +256,20 @@ export function CalendarGrid({ year, month, states, todayKey }: { year: number; 
             const k = key(d);
             const s = states[k] ?? 'none';
             const isToday = k === todayKey;
+            const isSel = selectedKey === k;
             return (
-              <View
+              <Pressable
                 key={i}
+                onPress={onSelect ? () => onSelect(k) : undefined}
+                accessibilityRole={onSelect ? 'button' : undefined}
                 accessibilityLabel={`${d}: ${s === 'aligned' ? 'planla temas' : s === 'hard' ? 'zor gün' : 'kayıt yok'}`}
                 style={{
                   width: cellSize,
                   height: cellSize,
                   borderRadius: tokens.radius.xs,
                   backgroundColor: s === 'aligned' ? colors.outcomeResistedSoft : s === 'hard' ? colors.outcomeActedSoft : colors.surfaceSecondary,
-                  borderWidth: isToday ? 1.5 : 0,
-                  borderColor: colors.indigo,
+                  borderWidth: isToday || isSel ? 1.5 : 0,
+                  borderColor: isSel ? colors.violet : colors.indigo,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
@@ -267,7 +288,7 @@ export function CalendarGrid({ year, month, states, todayKey }: { year: number; 
                 ) : (
                   <View style={{ height: 9 }} />
                 )}
-              </View>
+              </Pressable>
             );
           })}
         </View>

@@ -144,8 +144,12 @@ export default function QuickLogSheet() {
     );
   }
 
+  // Title reflects why the sheet was opened (help vs. a retrospective "I resisted" record),
+  // not always the urge label — otherwise a "Direndim" tap opens a sheet titled "Canım çekti".
+  const sheetTitle = presetOutcome === 'resisted' ? behavior.verbResist : presetOutcome === 'acted' ? behavior.verbDid : behavior.verbUrge;
+
   return (
-    <Sheet onClose={close} title={behavior.verbUrge} subtitle="Hiçbir şey seçmeden kaydetmek de geçerli.">
+    <Sheet onClose={close} title={sheetTitle} subtitle="Bu geçmişe dönük bir kayıt. Hiçbir şey seçmeden kaydetmek de geçerli.">
       {behaviors.length > 1 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: tokens.spacing['8'], paddingBottom: tokens.spacing['16'] }}>
           {behaviors.map((b) => (

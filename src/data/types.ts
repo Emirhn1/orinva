@@ -70,6 +70,12 @@ export interface JournalEntry {
   linkedEventId: string | null;
   tag: string | null;
   mood: string | null;
+  /** Guided-reflection fields (tag = 'guided_reflection'); null for free-text notes. */
+  situation: string | null;
+  thought: string | null;
+  reframe: string | null;
+  /** Saved without finishing — resumable from the journal list. */
+  isDraft: boolean;
 }
 
 export type ReasonType = 'reason' | 'future_self';
@@ -106,10 +112,13 @@ export interface AppSettings {
   streakRingEnabled: boolean;
   onboardingCompleted: boolean;
   displayName: string;
+  /** Off by default (Part 4 §privacy): lock-screen widget stays generic until the user opts in. */
+  widgetSensitiveContentVisible: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   themePreference: 'system',
+  widgetSensitiveContentVisible: false,
   notificationsEnabled: false,
   appLockEnabled: false,
   streakRingEnabled: true,

@@ -12,6 +12,7 @@ export const settingsRepo = {
       streakRingEnabled: map.get('streakRingEnabled') !== '0',
       onboardingCompleted: map.get('onboardingCompleted') === '1',
       displayName: map.get('displayName') ?? '',
+      widgetSensitiveContentVisible: map.get('widgetSensitiveContentVisible') === '1',
     };
   },
 

@@ -22,7 +22,7 @@ export function QuoteCarousel({ featured, meta, onFavorite }: { featured: Quote;
   const onScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => setIndex(Math.round(event.nativeEvent.contentOffset.x / cardWidth));
 
   return (
-    <View style={{ marginHorizontal: -tokens.spacing['20'], marginBottom: tokens.spacing['16'] }}>
+    <View style={{ marginHorizontal: -tokens.spacing['20'], marginTop: tokens.spacing['16'], marginBottom: tokens.spacing['16'] }}>
       <View style={{ paddingHorizontal: tokens.spacing['20'], flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: tokens.spacing['8'] }}>
         <View>
           <Text variant="title">Günün sözü</Text>
@@ -46,7 +46,7 @@ export function QuoteCarousel({ featured, meta, onFavorite }: { featured: Quote;
           const favorite = !!meta.find((entry) => entry.quoteId === item.id)?.isFavorite;
           return (
             <View style={{ width: cardWidth, paddingRight: itemIndex === items.length - 1 ? 0 : tokens.spacing['8'] }}>
-              <Card padded style={{ minHeight: 210, backgroundColor: itemIndex === 0 ? colors.surfaceRaised : colors.surface }}>
+              <Card padded style={{ minHeight: 168, backgroundColor: itemIndex === 0 ? colors.surfaceRaised : colors.surface }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Text variant="caption" color={item.contentType === 'story' ? 'slateBlue' : 'indigo'}>{itemIndex === 0 ? 'BUGÜNÜN SEÇİMİ' : QUOTE_CATEGORY_LABEL[item.category].toLocaleUpperCase('tr-TR')}</Text>
                   <Pressable onPress={() => onFavorite(item.id)} hitSlop={12} accessibilityRole="button" accessibilityLabel={favorite ? 'Favoriden çıkar' : 'Favorilere ekle'}>
@@ -54,8 +54,8 @@ export function QuoteCarousel({ featured, meta, onFavorite }: { featured: Quote;
                   </Pressable>
                 </View>
                 <Pressable onPress={() => router.push({ pathname: '/quote/[id]', params: { id: item.id } })} accessibilityRole="button" style={{ flex: 1, justifyContent: 'center', paddingVertical: tokens.spacing['16'] }}>
-                  {item.title ? <Text variant="label" color="secondary" style={{ marginBottom: tokens.spacing['8'] }}>{item.title}</Text> : null}
-                  <Text variant="bodyLarge" serif style={{ fontSize: item.contentType === 'story' ? 17 : 20, lineHeight: item.contentType === 'story' ? 26 : 30 }} numberOfLines={item.contentType === 'story' ? 4 : 5}>{item.text}</Text>
+                  {item.title ? <Text variant="label" color="secondary" numberOfLines={1} style={{ marginBottom: tokens.spacing['8'] }}>{item.title}</Text> : null}
+                  <Text variant="bodyLarge" serif style={{ fontSize: item.contentType === 'story' ? 16 : 18, lineHeight: item.contentType === 'story' ? 23 : 26 }} numberOfLines={item.contentType === 'story' ? 3 : 4}>{item.text}</Text>
                   {item.author ? <Text variant="caption" color="secondary" style={{ marginTop: tokens.spacing['12'] }}>— {item.author}</Text> : null}
                 </Pressable>
               </Card>

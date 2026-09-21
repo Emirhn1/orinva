@@ -52,15 +52,15 @@ export default function DataScreen() {
       </Card>
 
       <Card padded style={{ marginTop: tokens.spacing['20'] }}>
-        <Text variant="label" color="terracotta">Tüm verileri sil</Text>
+        <Text variant="label" color="terracotta">Cihazdaki tüm verileri sil</Text>
         <Text variant="caption" color="secondary" style={{ marginTop: tokens.spacing['4'], marginBottom: tokens.spacing['16'] }}>
-          Bu işlem geri alınamaz. Tüm davranışlar, kayıtlar, journal ve nedenler cihazdan silinir.
+          ORINVA'da hesap yok — bu, cihazındaki her şeyi siler: davranışlar, kayıtlar, günlük yazıların, nedenlerin, check-in'lerin, kilometre taşların, bildirim ve favori sözlerin dahil tüm ayarların. Bu işlem geri alınamaz.
         </Text>
         {!confirmingDelete ? (
-          <Button label="Hesabı ve tüm verileri sil" variant="critical" onPress={() => setConfirmingDelete(true)} />
+          <Button label="Tüm verileri sil" variant="critical" onPress={() => setConfirmingDelete(true)} />
         ) : (
           <View style={{ gap: tokens.spacing['12'] }}>
-            <Text variant="body" color="terracotta">Emin misin? Bu geri alınamaz.</Text>
+            <Text variant="body" color="terracotta">Emin misin? Cihazdaki tüm ORINVA verileri kalıcı olarak silinecek, bu geri alınamaz.</Text>
             <Button label="Evet, kalıcı olarak sil" variant="critical" onPress={doDelete} />
             <Button label="Vazgeç" variant="ghost" onPress={() => setConfirmingDelete(false)} />
           </View>
