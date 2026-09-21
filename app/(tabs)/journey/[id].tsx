@@ -1,18 +1,19 @@
 import React, { useMemo } from 'react';
 import { View, Pressable } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ScreenContainer, Text, Card, IconButton, SectionHeader, EmptyState, ProgressRing, OutcomeBadge, Button, Chip } from '@/components/ui';
+import { ScreenContainer, Text, Card, IconButton, SectionHeader, EmptyState, OutcomeBadge, Button, Chip } from '@/components/ui';
 import { resolveChipLabel } from '@/components/ui/ChipGroup';
 import { JourneyAnalytics } from '@/components/journey/JourneyAnalytics';
 import { Icon } from '@/icons';
 import { useTheme } from '@/design/ThemeProvider';
 import { useAppStore } from '@/store/useAppStore';
-import { cleanDuration, milestoneProgress, reachedMilestones, computeActedStats, actedSeries } from '@/utils/journey';
-import { formatRelativeTime, formatDuration, formatRemaining } from '@/utils/date';
+import { cleanDuration, reachedMilestones, computeActedStats, actedSeries } from '@/utils/journey';
+import { formatRelativeTime } from '@/utils/date';
 import { useNow } from '@/utils/useNow';
 import { TRIGGER_CHIPS } from '@/content/chips';
-import { GOAL_LABEL, behaviorTypeLabel } from '@/content/behaviors';
+import { behaviorTypeLabel } from '@/content/behaviors';
 import { commitActed } from '@/utils/actedFlow';
+import { FirstDayCounter } from '@/components/journey/FirstDayCounter';
 
 export default function BehaviorDetailScreen() {
   const router = useRouter();
@@ -40,13 +41,11 @@ export default function BehaviorDetailScreen() {
   }
 
   const d = cleanDuration(behavior, now);
-  const ms = milestoneProgress(d.totalHours);
   const reached = reachedMilestones(d.totalHours);
   const acted = computeActedStats(events, behavior, now);
   const week = actedSeries(events, behavior.id, 7, now);
   const weekMax = Math.max(1, ...week.map((w) => w.count));
   const overTarget = !!behavior.dailyTarget && acted.today > behavior.dailyTarget;
-  const ring = ringValue(d.totalMinutes);
   const behaviorColor = colors[behavior.color];
   const averageLineBottom = 16 + Math.min(36, ((acted.avgPerDay ?? 0) / weekMax) * 36);
 
@@ -71,29 +70,7 @@ export default function BehaviorDetailScreen() {
       ) : null}
 
       <Card hero>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['20'] }}>
-          <ProgressRing progress={ms.progress} size={104} color={behaviorColor}>
-            <Text variant="statLarge" tabular style={{ fontSize: 32, lineHeight: 34 }}>
-              {ring.value}
-            </Text>
-            <Text variant="caption" color="tertiary">
-              {ring.unit}
-            </Text>
-          </ProgressRing>
-          <View style={{ flex: 1 }}>
-            <Text variant="body" tabular>
-              {formatDuration(d.totalMinutes, 'long')}
-            </Text>
-            <Text variant="caption" color="tertiary" style={{ marginTop: tokens.spacing['4'] }}>
-              {GOAL_LABEL[behavior.goalMode]}
-            </Text>
-            {ms.next ? (
-              <Text variant="caption" color="secondary" style={{ marginTop: tokens.spacing['8'] }} tabular>
-                {ms.next.label} doldurmaya {formatRemaining(ms.remainingMinutes)}
-              </Text>
-            ) : null}
-          </View>
-        </View>
+        <FirstDayCounter totalMinutes={d.totalMinutes} color={behaviorColor} size={104} />
         {reached.length > 0 ? (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing['8'], marginTop: tokens.spacing['16'] }}>
             {reached.map((m) => (
@@ -117,7 +94,7 @@ export default function BehaviorDetailScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View>
               <Text variant="label">Bugün</Text>
-              <Text variant="statSmall" tabular style={{ marginTop: tokens.spacing['4'], color: overTarget ? colors.amber : undefined }}>
+              <Text variant="statSmall" tabular style={{ marginTop: tokens.spacing['4'], color: overTarget ? colors.amber : colors.textPrimary }}>
                 {acted.today}
                 {behavior.dailyTarget ? <Text variant="body" color="tertiary">{` / ${behavior.dailyTarget}`}</Text> : null}
               </Text>
@@ -126,15 +103,9 @@ export default function BehaviorDetailScreen() {
                 {acted.avgPerDay !== null ? ` · günlük ort. ${acted.avgPerDay.toFixed(1)}` : ''}
               </Text>
             </View>
-            <Pressable
-              onPress={() => commitActed(router, behavior)}
-              accessibilityRole="button"
-              accessibilityLabel={`${behavior.verbDid} olarak kaydet`}
-              style={{ minWidth: 48, minHeight: 48, borderRadius: tokens.radius.pill, backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: tokens.spacing['16'] }}
-            >
-              <Text variant="label" color="indigo">
-                + {behavior.verbDid}
-              </Text>
+            <Pressable onPress={() => commitActed(router, behavior)} accessibilityRole="button" accessibilityLabel={`${behavior.verbDid} olarak kaydet`} style={{ minWidth: 112, minHeight: 48, borderRadius: tokens.radius.pill, backgroundColor: behaviorColor, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: tokens.spacing['8'], paddingHorizontal: tokens.spacing['16'] }}>
+              <Icon name="plus" size={18} color={colors.onAccent} />
+              <Text variant="label" color="onAccent">{behavior.verbDid}</Text>
             </Pressable>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: tokens.spacing['8'], marginTop: tokens.spacing['20'], height: 52, position: 'relative' }}>
@@ -224,12 +195,4 @@ export default function BehaviorDetailScreen() {
       </View>
     </ScreenContainer>
   );
-}
-
-function ringValue(totalMinutes: number): { value: number | string; unit: string } {
-  const minutes = Math.max(0, Math.floor(totalMinutes));
-  if (minutes < 1) return { value: 'şimdi', unit: 'başladı' };
-  if (minutes < 60) return { value: minutes, unit: 'dk' };
-  if (minutes < 1440) return { value: Math.floor(minutes / 60), unit: 'sa' };
-  return { value: Math.floor(minutes / 1440), unit: 'gün' };
 }

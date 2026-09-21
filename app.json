@@ -12,6 +12,12 @@
       "bundleIdentifier": "app.orinva.mobile"
     },
     "android": {
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#090C13",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -40,6 +46,7 @@
       [
         "expo-notifications",
         {
+          "icon": "./assets/notification-icon.png",
           "color": "#4E5FB8",
           "defaultChannel": "orinva-gentle"
         }

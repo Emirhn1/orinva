@@ -33,6 +33,7 @@ export default function BehaviorBuilderScreen() {
   const addBehavior = useAppStore((s) => s.addBehavior);
   const updateBehavior = useAppStore((s) => s.updateBehavior);
   const archiveBehavior = useAppStore((s) => s.archiveBehavior);
+  const removeBehavior = useAppStore((s) => s.removeBehavior);
 
   const editing = useMemo(() => behaviors.find((b) => b.id === params.id) ?? null, [behaviors, params.id]);
 
@@ -55,6 +56,7 @@ export default function BehaviorBuilderScreen() {
   const [goalAmount, setGoalAmount] = useState(editing?.savingsGoalAmount ? String(editing.savingsGoalAmount) : '');
   const [dailyTarget, setDailyTarget] = useState(editing?.dailyTarget ? String(editing.dailyTarget) : '');
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [showGuidance, setShowGuidance] = useState(false);
 
   const template = BEHAVIOR_TEMPLATES.find((t) => t.id === category);
@@ -71,7 +73,9 @@ export default function BehaviorBuilderScreen() {
     [behaviors, category, goalMode, editing]
   );
 
-  const canSave = category !== null && goalMode !== null && name.trim().length > 1 && !nameClash;
+  const activeCount = behaviors.filter((b) => !b.archived).length;
+  const atLimit = !editing && activeCount >= 5;
+  const canSave = !atLimit && category !== null && goalMode !== null && name.trim().length > 1 && !nameClash;
 
   const save = () => {
     if (!canSave || !category || !goalMode) return;
@@ -130,6 +134,18 @@ export default function BehaviorBuilderScreen() {
   return (
     <ModalShell onClose={() => router.back()}>
       <Text variant="headline">{editing ? 'Davranışı düzenle' : 'Yeni davranış'}</Text>
+
+      {atLimit ? (
+        <Surface radius="lg" bordered style={{ padding: tokens.spacing['16'], marginTop: tokens.spacing['16'], borderColor: colors.amber }}>
+          <Text variant="label">Beş aktif takip alanına ulaştın</Text>
+          <Text variant="caption" color="secondary" style={{ marginTop: tokens.spacing['4'] }}>
+            Yeni bir alan eklemek için Yolculuk listesinden bir davranışı arşivle veya kalıcı olarak sil.
+          </Text>
+          <View style={{ marginTop: tokens.spacing['12'] }}>
+            <Button label="Takip alanlarını yönet" variant="secondary" onPress={() => router.replace('/(tabs)/journey/behaviors')} />
+          </View>
+        </Surface>
+      ) : null}
 
       <View style={{ marginTop: tokens.spacing['20'], gap: tokens.spacing['8'] }}>
         {BEHAVIOR_TEMPLATES.map((t) => {
@@ -278,7 +294,7 @@ export default function BehaviorBuilderScreen() {
       </View>
 
       {editing ? (
-        <View style={{ marginTop: tokens.spacing['24'] }}>
+        <View style={{ marginTop: tokens.spacing['24'], gap: tokens.spacing['12'] }}>
           {!confirmArchive ? (
             <Button label="Bu davranışı arşivle" variant="critical" onPress={() => setConfirmArchive(true)} />
           ) : (
@@ -297,6 +313,20 @@ export default function BehaviorBuilderScreen() {
               />
               <Button label="Vazgeç" variant="ghost" onPress={() => setConfirmArchive(false)} />
             </View>
+          )}
+          {!confirmDelete ? (
+            <Button label="Kalıcı olarak sil" variant="critical" onPress={() => setConfirmDelete(true)} />
+          ) : (
+            <Surface radius="lg" bordered style={{ padding: tokens.spacing['16'], borderColor: colors.terracotta }}>
+              <Text variant="label">Bu işlem geri alınamaz</Text>
+              <Text variant="caption" color="secondary" style={{ marginTop: tokens.spacing['4'] }}>
+                Davranış ve ona bağlı bütün istek, içtim/yaptım, neden ve kilometre taşı kayıtları kalıcı olarak silinecek.
+              </Text>
+              <View style={{ gap: tokens.spacing['8'], marginTop: tokens.spacing['12'] }}>
+                <Button label="Evet, kalıcı olarak sil" variant="critical" onPress={() => { removeBehavior(editing.id); toast.show({ message: 'Davranış ve kayıtları silindi', icon: 'info' }); router.replace('/(tabs)/journey'); }} />
+                <Button label="Vazgeç" variant="ghost" onPress={() => setConfirmDelete(false)} />
+              </View>
+            </Surface>
           )}
         </View>
       ) : null}

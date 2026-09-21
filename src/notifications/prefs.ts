@@ -31,7 +31,7 @@ export interface NotificationPrefs {
   /** "HH:MM" local times for the quote of the day; max 5. */
   times: string[];
   scheduleMode: 'times' | 'interval';
-  intervalMinutes: 10 | 15 | 30 | 60 | 120 | 180;
+  intervalMinutes: 60 | 120 | 180;
   activeFrom: string;
   activeTo: string;
   /** Quiet window (local, may wrap midnight). */
@@ -101,12 +101,14 @@ export function inQuietHours(date: Date, prefs: NotificationPrefs): boolean {
 /** Merge stored prefs with defaults so new keys never come back undefined. */
 export function normalizePrefs(raw: Partial<NotificationPrefs> | null | undefined): NotificationPrefs {
   const d = DEFAULT_NOTIFICATION_PREFS;
+  const intervalMinutes = raw?.intervalMinutes === 120 || raw?.intervalMinutes === 180 ? raw.intervalMinutes : 60;
   return {
     ...d,
     ...(raw ?? {}),
     kinds: { ...d.kinds, ...(raw?.kinds ?? {}) },
     categories: { ...d.categories, ...(raw?.categories ?? {}) },
     times: (raw?.times ?? d.times).slice(0, MAX_TIMES),
+    intervalMinutes,
     maxPerDay: d.maxPerDay,
     minGapMinutes: d.minGapMinutes,
   };

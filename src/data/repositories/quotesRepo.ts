@@ -48,4 +48,8 @@ export const quotesRepo = {
       [meta.quoteId, meta.isFavorite ? 1 : 0, meta.lastShownAt, meta.shownCount, meta.hiddenAt]
     );
   },
+
+  removeMeta(id: string): void {
+    db.runSync('DELETE FROM quote_meta WHERE quoteId = ?;', [id]);
+  },
 };

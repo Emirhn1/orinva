@@ -16,7 +16,7 @@ import { NOTIFICATIONS_ENABLED } from '@/notifications/config';
 const KIND_ORDER: NotificationKind[] = ['quote', 'milestone', 'health', 'riskHour', 'postSlip', 'gentleReturn', 'weekly', 'earnings', 'insight'];
 const CATEGORY_ORDER: QuoteCategory[] = ['own', 'aphorism', 'motivation', 'calm', 'science', 'health', 'lyrics'];
 const HOURS = Array.from({ length: 24 }, (_, h) => toHHMM(h));
-const INTERVALS = [10, 15, 30, 60, 120, 180] as const;
+const INTERVALS = [60, 120, 180] as const;
 const intervalLabel = (minutes: number) => minutes < 60 ? `${minutes} dk` : `${minutes / 60} sa`;
 
 export default function NotificationSettingsScreen() {
@@ -97,7 +97,7 @@ export default function NotificationSettingsScreen() {
           <View style={{ flex: 1 }}>
             <Text variant="body">Bildirimler</Text>
             <Text variant="caption" color="tertiary">
-              {permission === 'denied' ? 'Sistem izni kapalı — Ayarlar > ORINVA' : 'Nazik, sessiz; günde en fazla 4, aralarında en az 90 dk.'}
+              {permission === 'denied' ? 'Sistem izni kapalı — Ayarlar > ORINVA' : 'Sözler seçtiğin düzende; diğer destekler günde en fazla 4.'}
             </Text>
           </View>
           <Switch value={prefs.enabled} onValueChange={toggleMaster} trackColor={{ true: colors.indigo }} />
@@ -160,7 +160,7 @@ export default function NotificationSettingsScreen() {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing['8'] }}>
             {INTERVALS.map((minutes) => <Chip key={minutes} label={intervalLabel(minutes)} selected={prefs.intervalMinutes === minutes} onPress={() => updateNotificationPrefs({ intervalMinutes: minutes })} />)}
           </View>
-          {prefs.intervalMinutes < 30 ? <Surface radius="md" style={{ marginTop: tokens.spacing['12'], padding: tokens.spacing['12'], backgroundColor: colors.amberSoft }}><Text variant="caption" color="secondary">Çok sık bildirim pil tüketir ve etkisi azalır. Android kısıtlamaları nedeniyle bazı bildirimler gelmeyebilir.</Text></Surface> : null}
+          <Text variant="caption" color="tertiary" style={{ marginTop: tokens.spacing['12'] }}>Seçtiğin başlangıç ve bitiş saatleri arasında her {intervalLabel(prefs.intervalMinutes)} bir yeni söz gelir.</Text>
           <Text variant="caption" color="tertiary" style={{ marginTop: tokens.spacing['16'], marginBottom: tokens.spacing['8'] }}>Aktif saat penceresi</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: tokens.spacing['8'] }}>
             <Chip label={prefs.activeFrom} selected={pickingActive === 'from'} onPress={() => setPickingActive(pickingActive === 'from' ? null : 'from')} />

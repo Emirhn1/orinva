@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import type * as NotificationsNS from 'expo-notifications';
 import { PlannedNotification } from './planner';
 import { NOTIFICATIONS_ENABLED } from './config';
@@ -14,7 +15,8 @@ type N = typeof NotificationsNS;
 // Do not statically import expo-notifications: recent Expo Go Android clients
 // throw while evaluating the module. Development and production builds keep the
 // full native implementation.
-const Notifications: N | null = NOTIFICATIONS_ENABLED ? require('expo-notifications') : null;
+const isExpoGo = Constants.appOwnership === 'expo';
+const Notifications: N | null = NOTIFICATIONS_ENABLED && !isExpoGo ? require('expo-notifications') : null;
 
 function api(): N | null {
   return Notifications;
@@ -85,6 +87,7 @@ export async function requestPermission(): Promise<PermissionState> {
   const N = api();
   if (!N) return 'unsupported';
   try {
+    await configureNotifications();
     const p = await N.requestPermissionsAsync({ ios: { allowAlert: true, allowBadge: false, allowSound: false } });
     if (p.granted) return 'granted';
     return p.canAskAgain ? 'undetermined' : 'denied';

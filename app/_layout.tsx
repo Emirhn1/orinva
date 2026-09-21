@@ -10,6 +10,7 @@ import { toast } from '@/store/useToastStore';
 import { ToastHost } from '@/components/ui';
 import { startNotificationScheduler } from '@/notifications/scheduler';
 import { subscribeResponses, ACTION_FAVORITE, ACTION_HIDE } from '@/notifications/native';
+import { useFonts, Lora_500Medium } from '@expo-google-fonts/lora';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -96,19 +97,20 @@ export default function RootLayout() {
   const boot = useAppStore((s) => s.boot);
   const ready = useAppStore((s) => s.ready);
   const [splashHidden, setSplashHidden] = useState(false);
+  const [fontsLoaded, fontError] = useFonts({ Lora_500Medium });
 
   useEffect(() => {
     boot();
   }, []);
 
   useEffect(() => {
-    if (ready && !splashHidden) {
+    if (ready && (fontsLoaded || fontError) && !splashHidden) {
       SplashScreen.hideAsync().catch(() => {});
       setSplashHidden(true);
     }
-  }, [ready, splashHidden]);
+  }, [ready, fontsLoaded, fontError, splashHidden]);
 
-  if (!ready) return null;
+  if (!ready || (!fontsLoaded && !fontError)) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

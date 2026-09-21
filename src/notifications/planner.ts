@@ -226,7 +226,7 @@ export function planNotifications(input: PlanInput): PlannedNotification[] {
 }
 
 function applyBudget(candidates: PlannedNotification[], input: PlanInput): PlannedNotification[] {
-  const { prefs, now } = input;
+  const { prefs } = input;
   const gapMs = prefs.minGapMinutes * 60_000;
 
   // Quiet hours: drop quotes, shift everything else to the end of the window.
@@ -253,19 +253,16 @@ function applyBudget(candidates: PlannedNotification[], input: PlanInput): Plann
 
   const accepted: PlannedNotification[] = [];
   for (const list of byDay.values()) {
-    list.sort((a, b) => PRIORITY[a.kind] - PRIORITY[b.kind] || a.at.getTime() - b.at.getTime());
-    const chosen: PlannedNotification[] = [];
-    const dailyLimit = prefs.scheduleMode === 'interval' ? Math.max(prefs.maxPerDay, Math.ceil(1440 / prefs.intervalMinutes)) : prefs.maxPerDay;
-    for (const c of list) {
-      if (chosen.length >= dailyLimit) break;
-      const tooClose = chosen.some((x) => {
-        const requiredGap = c.kind === 'quote' && x.kind === 'quote' && prefs.scheduleMode === 'interval' ? prefs.intervalMinutes * 60_000 : gapMs;
-        return Math.abs(x.at.getTime() - c.at.getTime()) < requiredGap;
-      });
-      if (tooClose) continue;
-      chosen.push(c);
+    const quotes = list.filter((item) => item.kind === 'quote').sort((a, b) => a.at.getTime() - b.at.getTime());
+    const support = list.filter((item) => item.kind !== 'quote').sort((a, b) => PRIORITY[a.kind] - PRIORITY[b.kind] || a.at.getTime() - b.at.getTime());
+    const chosenSupport: PlannedNotification[] = [];
+    for (const item of support) {
+      if (chosenSupport.length >= prefs.maxPerDay) break;
+      if (quotes.some((quote) => Math.abs(quote.at.getTime() - item.at.getTime()) < 5 * 60_000)) continue;
+      if (chosenSupport.some((chosen) => Math.abs(chosen.at.getTime() - item.at.getTime()) < gapMs)) continue;
+      chosenSupport.push(item);
     }
-    accepted.push(...chosen);
+    accepted.push(...quotes, ...chosenSupport);
   }
 
   accepted.sort((a, b) => a.at.getTime() - b.at.getTime());
@@ -288,7 +285,11 @@ function assignQuotes(planned: PlannedNotification[], input: PlanInput): Planned
     const prev = prevByKey.get(p.key);
     const prevQuote = prev?.quoteId ? input.quotes.find((q) => q.id === prev.quoteId) : undefined;
     const prevOk = prevQuote && prefs.categories[prevQuote.category] && !input.meta.find((m) => m.quoteId === prevQuote.id)?.hiddenAt && !exclude.has(prevQuote.id);
-    const quote = prevOk ? prevQuote : pickQuote(input.quotes, { prefs, meta: input.meta, behaviors: input.behaviors, now: input.now, exclude }, p.at.getDate() + p.at.getHours());
+    let quote = prevOk ? prevQuote : pickQuote(input.quotes, { prefs, meta: input.meta, behaviors: input.behaviors, now: input.now, exclude }, p.at.getDate() + p.at.getHours());
+    if (!quote && exclude.size) {
+      exclude.clear();
+      quote = pickQuote(input.quotes, { prefs, meta: input.meta, behaviors: input.behaviors, now: input.now, exclude }, p.at.getDate() + p.at.getHours());
+    }
     if (!quote) continue;
     exclude.add(quote.id);
     out.push({ ...p, quoteId: quote.id, body: quote.author ? `${quote.text} — ${quote.author}` : quote.text });

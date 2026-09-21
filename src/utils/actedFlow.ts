@@ -13,6 +13,9 @@ interface Opts {
   afterQuiet?: () => void;
 }
 
+const recentActed = new Map<string, number>();
+const DUPLICATE_GUARD_MS = 1200;
+
 /**
  * The one place "yaptım / içtim" is recorded.
  *
@@ -21,8 +24,15 @@ interface Opts {
  * hour after the first — is just a data point: one tap, a count, an undo.
  * §41: no haptic either way.
  */
-export function commitActed(router: { replace: (href: any) => void }, behavior: Behavior, opts: Opts = {}): 'recovery' | 'quiet' {
+export function commitActed(router: { replace: (href: any) => void }, behavior: Behavior, opts: Opts = {}): 'recovery' | 'quiet' | 'ignored' {
   const store = useAppStore.getState();
+
+  if (!opts.eventId) {
+    const now = Date.now();
+    const previous = recentActed.get(behavior.id) ?? 0;
+    if (now - previous < DUPLICATE_GUARD_MS) return 'ignored';
+    recentActed.set(behavior.id, now);
+  }
 
   if (shouldRunRecovery(behavior)) {
     router.replace({ pathname: '/relapse-recovery', params: { behaviorId: behavior.id, eventId: opts.eventId ?? '' } });

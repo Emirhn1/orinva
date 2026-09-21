@@ -9,8 +9,8 @@ const NO_REPEAT_DAYS = 30;
 export function allQuotes(userQuotes: UserQuote[], reasons: Reason[]): Quote[] {
   const own: Quote[] = reasons
     .filter((r) => r.type === 'reason')
-    .map((r) => ({ id: `r-${r.id}`, category: 'own' as const, text: r.text }));
-  const user: Quote[] = userQuotes.map((q) => ({ id: q.id, category: q.category, text: q.text, author: q.author ?? undefined }));
+    .map((r) => ({ id: `r-${r.id}`, category: 'own' as const, contentType: 'user' as const, text: r.text, notificationEligible: true }));
+  const user: Quote[] = userQuotes.map((q) => ({ id: q.id, category: q.category, contentType: 'user', text: q.text, author: q.author ?? undefined, notificationEligible: true }));
   return [...BUILTIN_QUOTES, ...own, ...user];
 }
 
@@ -48,6 +48,7 @@ function healthRelevant(q: Quote, behaviors: Behavior[], now: Date): boolean {
 export function eligibleQuotes(quotes: Quote[], ctx: PickContext): Quote[] {
   const cutoff = ctx.now.getTime() - NO_REPEAT_DAYS * 86_400_000;
   return quotes.filter((q) => {
+    if (q.notificationEligible === false || q.contentType === 'story') return false;
     if (ctx.category && q.category !== ctx.category) return false;
     if (!ctx.prefs.categories[q.category]) return false;
     if (ctx.exclude?.has(q.id)) return false;

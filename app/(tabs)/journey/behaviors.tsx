@@ -10,6 +10,7 @@ import { formatDuration } from '@/utils/date';
 import { useNow } from '@/utils/useNow';
 import { GOAL_LABEL, behaviorTypeLabel } from '@/content/behaviors';
 import { Behavior } from '@/data/types';
+import { toast } from '@/store/useToastStore';
 
 export default function BehaviorsScreen() {
   const router = useRouter();
@@ -40,9 +41,9 @@ export default function BehaviorsScreen() {
               </Text>
             </View>
             {isArchived ? (
-              <Text variant="label" color="indigo" onPress={() => unarchiveBehavior(id)} accessibilityRole="button">
-                Geri aç
-              </Text>
+              <Pressable onPress={(event) => { event.stopPropagation(); if (active.length >= 5) { toast.show({ message: 'En fazla 5 aktif takip alanı olabilir', icon: 'info' }); return; } unarchiveBehavior(id); toast.show({ message: 'Takip alanı yeniden açıldı', tone: 'success' }); }} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}>
+                <Text variant="label" color={active.length >= 5 ? 'tertiary' : 'indigo'}>Geri aç</Text>
+              </Pressable>
             ) : (
               <Badge label={GOAL_LABEL[goalMode]} tone="slateBlue" />
             )}
@@ -73,7 +74,7 @@ export default function BehaviorsScreen() {
       )}
 
       <View style={{ marginTop: tokens.spacing['20'] }}>
-        <Button label="Yeni davranış ekle" variant="secondary" onPress={() => router.push('/behavior-builder')} />
+        <Button label={active.length >= 5 ? '5 aktif alan sınırına ulaştın' : 'Yeni davranış ekle'} variant="secondary" disabled={active.length >= 5} onPress={() => router.push('/behavior-builder')} />
       </View>
 
       {archived.length > 0 ? (

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text as RNText, TextProps, Platform } from 'react-native';
+import { Text as RNText, TextProps } from 'react-native';
 import { useTheme } from '@/design/ThemeProvider';
 
 type Variant = 'display' | 'headline' | 'title' | 'bodyLarge' | 'body' | 'label' | 'caption' | 'statLarge' | 'statSmall';
@@ -26,7 +26,7 @@ const colorKey: Record<ColorRole, string> = {
   indigo: 'indigo',
 };
 
-const serifFamily = Platform.select({ ios: 'New York', android: 'serif', default: undefined });
+const serifFamily = 'Lora_500Medium';
 
 /**
  * DESIGN.md §39: text must reflow up to 130% scale without truncation. Large

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Share, Pressable } from 'react-native';
+import { View, Share, Pressable, Linking, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -86,8 +86,9 @@ export default function QuoteScreen() {
           <IconButton name="x" accessibilityLabel="Kapat" onPress={close} color={textColor} />
         </View>
 
-        <View style={{ flex: 1, justifyContent: 'center' }}>
-          <Text variant="display" serif style={{ color: textColor, fontSize: 30, lineHeight: 40, fontWeight: '500' }} maxFontSizeMultiplier={1.4}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingVertical: tokens.spacing['24'] }} showsVerticalScrollIndicator={false}>
+          {quote.title ? <Text variant="headline" style={{ color: textColor, marginBottom: tokens.spacing['20'] }}>{quote.title}</Text> : null}
+          <Text variant={quote.contentType === 'story' ? 'bodyLarge' : 'display'} serif style={{ color: textColor, fontSize: quote.contentType === 'story' ? 18 : 30, lineHeight: quote.contentType === 'story' ? 30 : 40, fontWeight: '500' }} maxFontSizeMultiplier={1.4}>
             {quote.text}
           </Text>
           {quote.author ? (
@@ -95,14 +96,17 @@ export default function QuoteScreen() {
               — {quote.author}
             </Text>
           ) : null}
-        </View>
+          {quote.sourceUrl ? (
+            <Text variant="caption" style={{ color: subColor, marginTop: tokens.spacing['20'], textDecorationLine: 'underline' }} onPress={() => Linking.openURL(quote.sourceUrl!)} accessibilityRole="link">Kaynağı aç</Text>
+          ) : null}
+        </ScrollView>
 
         <View style={{ paddingBottom: tokens.spacing['24'], gap: tokens.spacing['12'] }}>
           <View style={{ flexDirection: 'row', gap: tokens.spacing['12'] }}>
             <Action icon={isFavorite ? 'bookmark' : 'heart'} label={isFavorite ? 'Favoride' : 'Favorilere kaydet'} onPress={favorite} active={isFavorite} textColor={textColor} />
             <Action icon="send" label="Paylaş" onPress={share} textColor={textColor} />
           </View>
-          {quote.category !== 'own' && quote.category !== 'lyrics' && !hidden ? (
+          {quote.contentType !== 'user' && quote.category !== 'own' && !hidden ? (
             <View style={{ flexDirection: 'row', gap: tokens.spacing['16'], justifyContent: 'center', marginTop: tokens.spacing['8'] }}>
               <Text variant="caption" style={{ color: subColor }} onPress={hide} accessibilityRole="button">
                 Bunu bir daha gösterme

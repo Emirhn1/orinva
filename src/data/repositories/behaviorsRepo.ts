@@ -140,4 +140,11 @@ export const behaviorsRepo = {
   unarchive(id: string): void {
     db.runSync('UPDATE behaviors SET archived = 0 WHERE id = ?;', [id]);
   },
+
+  remove(id: string): void {
+    db.runSync('DELETE FROM events WHERE behaviorId = ?;', [id]);
+    db.runSync('DELETE FROM reasons WHERE behaviorId = ?;', [id]);
+    db.runSync('DELETE FROM milestones WHERE behaviorId = ?;', [id]);
+    db.runSync('DELETE FROM behaviors WHERE id = ?;', [id]);
+  },
 };

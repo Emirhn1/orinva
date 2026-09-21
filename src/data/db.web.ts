@@ -138,8 +138,12 @@ function runSync(sql: string, params: any[] = []) {
     return;
   }
 
-  if ((m = sql.match(/^DELETE FROM\s+(\w+)\s+WHERE\s+\w+\s*=\s*\?\s*;?$/i))) {
-    ensureTable(m[1]).delete(params[0]);
+  if ((m = sql.match(/^DELETE FROM\s+(\w+)\s+WHERE\s+(\w+)\s*=\s*\?\s*;?$/i))) {
+    const table = ensureTable(m[1]);
+    const column = m[2];
+    for (const [key, row] of table.entries()) {
+      if (row[column] === params[0]) table.delete(key);
+    }
     return;
   }
 

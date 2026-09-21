@@ -26,12 +26,13 @@ import {
 import { NotificationPrefs, normalizePrefs } from '@/notifications/prefs';
 import { PlannedNotification } from '@/notifications/planner';
 import { allQuotes, pickQuote, markShown as markQuoteShownMeta } from '@/notifications/quoteEngine';
-import { Quote } from '@/content/quotes';
+import { BUILTIN_QUOTES, Quote } from '@/content/quotes';
 import type { PermissionState } from '@/notifications/native';
 import { generateId } from '@/utils/id';
-import { todayKey } from '@/utils/date';
+import { dayKey, todayKey } from '@/utils/date';
 import { cleanDuration, MILESTONE_LADDER } from '@/utils/journey';
 import { questionForDate } from '@/content/library';
+import { canActivateBehavior } from '@/utils/behaviorLimits';
 
 const CHIP_USAGE_KEY = 'chipUsage';
 const NOTIFICATION_PREFS_KEY = 'notificationPrefs';
@@ -105,6 +106,7 @@ interface AppState {
   updateBehavior: (id: string, patch: Partial<Behavior>) => void;
   archiveBehavior: (id: string) => void;
   unarchiveBehavior: (id: string) => void;
+  removeBehavior: (id: string) => void;
 
   logEvent: (input: LogEventInput) => UrgeEvent;
   closeEvent: (id: string, outcome: EventOutcome, extra?: CloseEventExtra) => void;
@@ -184,9 +186,21 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   boot: () => {
     initDb();
+    const userQuotes = quotesRepo.listUser();
+    const reasons = reasonsRepo.list();
+    const validQuoteIds = new Set([
+      ...BUILTIN_QUOTES.map((q) => q.id),
+      ...userQuotes.map((q) => q.id),
+      ...reasons.filter((r) => r.type === 'reason').map((r) => `r-${r.id}`),
+    ]);
+    const quoteMeta = quotesRepo.listMeta().filter((meta) => {
+      if (validQuoteIds.has(meta.quoteId)) return true;
+      quotesRepo.removeMeta(meta.quoteId);
+      return false;
+    });
     set({
-      userQuotes: quotesRepo.listUser(),
-      quoteMeta: quotesRepo.listMeta(),
+      userQuotes,
+      quoteMeta,
       notificationPrefs: normalizePrefs(settingsRepo.getJson<Partial<NotificationPrefs> | null>(NOTIFICATION_PREFS_KEY, null)),
       notificationPlan: hydratePlan(settingsRepo.getJson<StoredPlan[]>(NOTIFICATION_PLAN_KEY, [])),
       lastInsightNotifiedAt: settingsRepo.getJson<string | null>(LAST_INSIGHT_KEY, null),
@@ -194,7 +208,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       behaviors: behaviorsRepo.list(),
       events: eventsRepo.list(),
       journalEntries: journalRepo.list(),
-      reasons: reasonsRepo.list(),
+      reasons,
       checkins: checkinsRepo.list(),
       milestones: milestonesRepo.list(),
       settings: settingsRepo.load(),
@@ -204,6 +218,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   addBehavior: (input) => {
+    if (!canActivateBehavior(get().behaviors)) throw new Error('ACTIVE_BEHAVIOR_LIMIT');
     const behavior = behaviorsRepo.create(input);
     set((s) => ({ behaviors: [...s.behaviors, behavior] }));
     return behavior;
@@ -221,8 +236,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   unarchiveBehavior: (id) => {
+    if (!canActivateBehavior(get().behaviors)) return;
     behaviorsRepo.unarchive(id);
     set((s) => ({ behaviors: s.behaviors.map((b) => (b.id === id ? { ...b, archived: false } : b)) }));
+  },
+
+  removeBehavior: (id) => {
+    behaviorsRepo.remove(id);
+    set((s) => ({
+      behaviors: s.behaviors.filter((b) => b.id !== id),
+      events: s.events.filter((e) => e.behaviorId !== id),
+      reasons: s.reasons.filter((r) => r.behaviorId !== id),
+      milestones: s.milestones.filter((m) => m.behaviorId !== id),
+    }));
   },
 
   logEvent: (input) => {
@@ -414,8 +440,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       const q = quotes.find((x) => x.id === s.quoteOfDay!.id);
       if (q) return q;
     }
-    // Exclude anything already planned for a notification this week so the card and the push differ.
-    const exclude = new Set(s.notificationPlan.map((p) => p.quoteId).filter(Boolean) as string[]);
+    // Keep today's card distinct from today's pushes without exhausting the whole weekly pool.
+    const exclude = new Set(
+      s.notificationPlan
+        .filter((p) => dayKey(p.at) === today)
+        .map((p) => p.quoteId)
+        .filter(Boolean) as string[],
+    );
     // The Today card already shows the user's own reason underneath — keep the quote itself editorial.
     const prefs = { ...s.notificationPrefs, categories: { ...s.notificationPrefs.categories, own: false } };
     const picked = pickQuote(quotes, { prefs, meta: s.quoteMeta, behaviors: s.behaviors, now: new Date(), exclude });

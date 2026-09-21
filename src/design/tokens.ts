@@ -131,7 +131,7 @@ export const EMERGENCY_FAB_HEIGHT = 60;
 
 export const componentHeight = {
   /** Space screens reserve at the bottom so content clears the floating "Zor An" CTA (H1). */
-  fabClearance: EMERGENCY_FAB_HEIGHT + 12 + 24,
+  fabClearance: EMERGENCY_FAB_HEIGHT + 12 + 48,
   buttonPrimary: 52,
   buttonSecondary: 48,
   buttonGhost: 48,

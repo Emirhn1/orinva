@@ -22,7 +22,7 @@ export function EmergencyFAB({ onPress, bottomOffset }: { onPress: () => void; b
 
   const { width: screenWidth } = useWindowDimensions();
   const size = tokens.componentHeight.cravingHelpCta;
-  const fullWidth = Math.min(screenWidth - tokens.spacing['20'] * 2, 520);
+  const fullWidth = Math.min(screenWidth - tokens.spacing['20'] * 2, 264);
 
   return (
     <Animated.View
@@ -49,7 +49,7 @@ export function EmergencyFAB({ onPress, bottomOffset }: { onPress: () => void; b
           <Animated.View
             style={{
               height: size,
-              borderRadius: tokens.radius.lg,
+               borderRadius: tokens.radius.pill,
               backgroundColor: colors.indigo,
               flexDirection: 'row',
               alignItems: 'center',
